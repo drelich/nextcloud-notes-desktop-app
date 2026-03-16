@@ -8,6 +8,8 @@ interface NotesListProps {
   onCreateNote: () => void;
   onDeleteNote: (note: Note) => void;
   onSync: () => void;
+  onLogout: () => void;
+  username: string;
   searchText: string;
   onSearchChange: (text: string) => void;
   showFavoritesOnly: boolean;
@@ -21,6 +23,8 @@ export function NotesList({
   onCreateNote,
   onDeleteNote,
   onSync,
+  onLogout,
+  username,
   searchText,
   onSearchChange,
   showFavoritesOnly,
@@ -167,6 +171,27 @@ export function NotesList({
             </div>
           ))
         )}
+      </div>
+
+      {/* User Info and Logout */}
+      <div className="border-t border-gray-200 p-4 bg-white">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2 min-w-0">
+            <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
+              {username.charAt(0).toUpperCase()}
+            </div>
+            <span className="text-sm text-gray-700 truncate font-medium">{username}</span>
+          </div>
+          <button
+            onClick={onLogout}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+            title="Logout"
+          >
+            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   );

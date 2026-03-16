@@ -13,6 +13,7 @@ function App() {
   const [searchText, setSearchText] = useState('');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [fontSize] = useState(14);
+  const [username, setUsername] = useState('');
 
   useEffect(() => {
     const savedServer = localStorage.getItem('serverURL');
@@ -26,6 +27,7 @@ function App() {
         password: savedPassword,
       });
       setApi(apiInstance);
+      setUsername(savedUsername);
       setIsLoggedIn(true);
     }
   }, []);
@@ -58,7 +60,19 @@ function App() {
 
     const apiInstance = new NextcloudAPI({ serverURL, username, password });
     setApi(apiInstance);
+    setUsername(username);
     setIsLoggedIn(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('serverURL');
+    localStorage.removeItem('username');
+    localStorage.removeItem('password');
+    setApi(null);
+    setUsername('');
+    setNotes([]);
+    setSelectedNoteId(null);
+    setIsLoggedIn(false);
   };
 
   const handleCreateNote = async () => {
@@ -136,6 +150,8 @@ function App() {
         onCreateNote={handleCreateNote}
         onDeleteNote={handleDeleteNote}
         onSync={syncNotes}
+        onLogout={handleLogout}
+        username={username}
         searchText={searchText}
         onSearchChange={setSearchText}
         showFavoritesOnly={showFavoritesOnly}
