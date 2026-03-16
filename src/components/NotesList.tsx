@@ -159,11 +159,6 @@ export function NotesList({
               </div>
 
               <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-2">
-                {note.category && (
-                  <span className="bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full mr-2 text-gray-700 dark:text-gray-300">
-                    {note.category}
-                  </span>
-                )}
                 <span>{formatDate(note.modified)}</span>
               </div>
 

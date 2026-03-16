@@ -20,7 +20,6 @@ const turndownService = new TurndownService({
 
 export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
   const [localTitle, setLocalTitle] = useState('');
-  const [localCategory, setLocalCategory] = useState('');
   const [localFavorite, setLocalFavorite] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -60,7 +59,6 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
     
     if (note && editor) {
       setLocalTitle(note.title);
-      setLocalCategory(note.category);
       setLocalFavorite(note.favorite);
       setHasUnsavedChanges(false);
       
@@ -93,7 +91,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
       ...note,
       title: localTitle,
       content: markdown,
-      category: localCategory,
+      category: '',
       favorite: localFavorite,
     });
     setTimeout(() => setIsSaving(false), 500);
@@ -105,11 +103,6 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
     setHasUnsavedChanges(true);
   };
 
-  const handleCategoryChange = (value: string) => {
-    setLocalCategory(value);
-    setHasUnsavedChanges(true);
-  };
-
   const handleFavoriteToggle = () => {
     setLocalFavorite(!localFavorite);
     if (note) {
@@ -117,7 +110,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
         ...note,
         title: localTitle,
         content: editor ? turndownService.turndown(editor.getHTML()) : note.content,
-        category: localCategory,
+        category: '',
         favorite: !localFavorite,
       });
     }
@@ -177,11 +170,11 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
           
           <button
             onClick={handleFavoriteToggle}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             title={localFavorite ? "Remove from Favorites" : "Add to Favorites"}
           >
             <svg 
-              className={`w-6 h-6 ${localFavorite ? 'text-yellow-500 fill-current' : 'text-gray-400'}`}
+              className={`w-6 h-6 ${localFavorite ? 'text-yellow-500 fill-current' : 'text-gray-400 dark:text-gray-500'}`}
               fill={localFavorite ? "currentColor" : "none"}
               stroke="currentColor" 
               viewBox="0 0 24 24"
@@ -189,14 +182,6 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
             </svg>
           </button>
-
-          <input
-            type="text"
-            value={localCategory}
-            onChange={(e) => handleCategoryChange(e.target.value)}
-            placeholder="Category"
-            className="w-32 px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
         </div>
       </div>
 
