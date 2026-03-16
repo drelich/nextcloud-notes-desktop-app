@@ -146,7 +146,9 @@ export function NotesList({
                 </div>
                 <button
                   onClick={(e) => {
+                    console.log('Delete button clicked for note:', note.id);
                     e.stopPropagation();
+                    console.log('Calling onDeleteNote...');
                     onDeleteNote(note);
                   }}
                   className="ml-2 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
