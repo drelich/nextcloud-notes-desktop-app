@@ -217,7 +217,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
         <button
           onClick={() => editor.chain().focus().toggleItalic().run()}
           className={`p-2 rounded transition-colors ${
-            editor.isActive('italic') ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200'
+            editor.isActive('italic') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
           }`}
           title="Italic"
         >
@@ -229,7 +229,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
         <button
           onClick={() => editor.chain().focus().toggleStrike().run()}
           className={`p-2 rounded transition-colors ${
-            editor.isActive('strike') ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200'
+            editor.isActive('strike') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
           }`}
           title="Strikethrough"
         >
@@ -241,7 +241,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
         <button
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           className={`p-2 rounded transition-colors ${
-            editor.isActive('underline') ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200'
+            editor.isActive('underline') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
           }`}
           title="Underline"
         >
@@ -255,7 +255,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
         <button
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
           className={`px-2 py-1 rounded transition-colors font-bold text-sm ${
-            editor.isActive('heading', { level: 1 }) ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200'
+            editor.isActive('heading', { level: 1 }) ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
           }`}
           title="Heading 1"
         >
@@ -265,7 +265,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
         <button
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           className={`px-2 py-1 rounded transition-colors font-bold text-sm ${
-            editor.isActive('heading', { level: 2 }) ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200'
+            editor.isActive('heading', { level: 2 }) ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
           }`}
           title="Heading 2"
         >
@@ -275,7 +275,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
         <button
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
           className={`px-2 py-1 rounded transition-colors font-bold text-sm ${
-            editor.isActive('heading', { level: 3 }) ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200'
+            editor.isActive('heading', { level: 3 }) ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
           }`}
           title="Heading 3"
         >
@@ -287,7 +287,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
         <button
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           className={`p-2 rounded transition-colors ${
-            editor.isActive('bulletList') ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200'
+            editor.isActive('bulletList') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
           }`}
           title="Bullet List"
         >
@@ -299,7 +299,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
         <button
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           className={`p-2 rounded transition-colors ${
-            editor.isActive('orderedList') ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200'
+            editor.isActive('orderedList') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
           }`}
           title="Numbered List"
         >
@@ -308,12 +308,12 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
           </svg>
         </button>
 
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
+        <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
 
         <button
           onClick={() => editor.chain().focus().toggleCode().run()}
           className={`p-2 rounded transition-colors ${
-            editor.isActive('code') ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200'
+            editor.isActive('code') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
           }`}
           title="Inline Code"
         >
@@ -325,7 +325,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
         <button
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
           className={`p-2 rounded transition-colors ${
-            editor.isActive('codeBlock') ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200'
+            editor.isActive('codeBlock') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
           }`}
           title="Code Block"
         >
