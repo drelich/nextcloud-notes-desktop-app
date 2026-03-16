@@ -35,11 +35,27 @@ export function NotesList({
   onToggleFavorites,
 }: NotesListProps) {
   const [isSyncing, setIsSyncing] = React.useState(false);
+  const [deleteClickedId, setDeleteClickedId] = React.useState<number | null>(null);
 
   const handleSync = async () => {
     setIsSyncing(true);
     await onSync();
     setTimeout(() => setIsSyncing(false), 500);
+  };
+
+  const handleDeleteClick = (note: Note, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (deleteClickedId === note.id) {
+      // Second click - actually delete
+      onDeleteNote(note);
+      setDeleteClickedId(null);
+    } else {
+      // First click - show confirmation state
+      setDeleteClickedId(note.id);
+      // Reset after 3 seconds
+      setTimeout(() => setDeleteClickedId(null), 3000);
+    }
   };
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp * 1000);
@@ -145,14 +161,13 @@ export function NotesList({
                   </h3>
                 </div>
                 <button
-                  onClick={(e) => {
-                    console.log('Delete button clicked for note:', note.id);
-                    e.stopPropagation();
-                    console.log('Calling onDeleteNote...');
-                    onDeleteNote(note);
-                  }}
-                  className="ml-2 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Delete"
+                  onClick={(e) => handleDeleteClick(note, e)}
+                  className={`ml-2 p-1 rounded transition-all opacity-0 group-hover:opacity-100 ${
+                    deleteClickedId === note.id
+                      ? 'bg-red-600 text-white'
+                      : 'hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400'
+                  }`}
+                  title={deleteClickedId === note.id ? "Click again to confirm deletion" : "Delete"}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

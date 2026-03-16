@@ -147,20 +147,10 @@ function App() {
   };
 
   const handleDeleteNote = async (note: Note) => {
-    console.log('handleDeleteNote called for note:', note.id, note.title);
-    if (!api) {
-      console.log('No API instance');
-      return;
-    }
-    
-    const confirmed = confirm(`Delete "${note.title}"?`);
-    console.log('User confirmed deletion:', confirmed);
-    if (!confirmed) return;
+    if (!api) return;
     
     try {
-      console.log('Calling API deleteNote...');
       await api.deleteNote(note.id);
-      console.log('Note deleted successfully, updating state...');
       setNotes(notes.filter(n => n.id !== note.id));
       if (selectedNoteId === note.id) {
         setSelectedNoteId(notes[0]?.id || null);
