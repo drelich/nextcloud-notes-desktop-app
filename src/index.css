@@ -35,6 +35,11 @@ code {
   font-weight: bold;
   margin-top: 0.5em;
   margin-bottom: 0.5em;
+  color: #111827;
+}
+
+.dark .ProseMirror h1 {
+  color: #f3f4f6;
 }
 
 .ProseMirror h2 {
@@ -42,6 +47,11 @@ code {
   font-weight: bold;
   margin-top: 0.5em;
   margin-bottom: 0.5em;
+  color: #111827;
+}
+
+.dark .ProseMirror h2 {
+  color: #f3f4f6;
 }
 
 .ProseMirror h3 {
@@ -49,26 +59,56 @@ code {
   font-weight: bold;
   margin-top: 0.5em;
   margin-bottom: 0.5em;
+  color: #111827;
+}
+
+.dark .ProseMirror h3 {
+  color: #f3f4f6;
 }
 
 .ProseMirror p {
   margin-bottom: 0.5em;
+  color: #111827;
+}
+
+.dark .ProseMirror p {
+  color: #f3f4f6;
 }
 
 .ProseMirror strong {
   font-weight: bold;
+  color: #111827;
+}
+
+.dark .ProseMirror strong {
+  color: #f3f4f6;
 }
 
 .ProseMirror em {
   font-style: italic;
+  color: #111827;
+}
+
+.dark .ProseMirror em {
+  color: #f3f4f6;
 }
 
 .ProseMirror s {
   text-decoration: line-through;
+  color: #111827;
+}
+
+.dark .ProseMirror s {
+  color: #f3f4f6;
 }
 
 .ProseMirror u {
   text-decoration: underline;
+  color: #111827;
+}
+
+.dark .ProseMirror u {
+  color: #f3f4f6;
 }
 
 .ProseMirror code {
@@ -108,6 +148,12 @@ code {
 .ProseMirror ol {
   padding-left: 1.5rem;
   margin: 0.5em 0;
+  color: #111827;
+}
+
+.dark .ProseMirror ul,
+.dark .ProseMirror ol {
+  color: #f3f4f6;
 }
 
 .ProseMirror ul {
@@ -120,6 +166,11 @@ code {
 
 .ProseMirror li {
   margin: 0.25em 0;
+  color: #111827;
+}
+
+.dark .ProseMirror li {
+  color: #f3f4f6;
 }
 
 .ProseMirror blockquote {
@@ -129,8 +180,17 @@ code {
   color: #6b7280;
 }
 
+.dark .ProseMirror blockquote {
+  border-left-color: #4b5563;
+  color: #9ca3af;
+}
+
 .ProseMirror hr {
   border: none;
   border-top: 2px solid #e5e7eb;
   margin: 2em 0;
+}
+
+.dark .ProseMirror hr {
+  border-top-color: #374151;
 }
