@@ -159,7 +159,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
             className={`p-2 rounded-lg transition-colors ${
               hasUnsavedChanges && !isSaving
                 ? 'bg-blue-500 text-white hover:bg-blue-600'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
             }`}
             title="Save Note"
           >
