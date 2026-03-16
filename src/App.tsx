@@ -14,11 +14,18 @@ function App() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [fontSize] = useState(14);
   const [username, setUsername] = useState('');
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
+  const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
     const savedServer = localStorage.getItem('serverURL');
     const savedUsername = localStorage.getItem('username');
     const savedPassword = localStorage.getItem('password');
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | 'system' | null;
+
+    if (savedTheme) {
+      setTheme(savedTheme);
+    }
 
     if (savedServer && savedUsername && savedPassword) {
       const apiInstance = new NextcloudAPI({
@@ -31,6 +38,30 @@ function App() {
       setIsLoggedIn(true);
     }
   }, []);
+
+  useEffect(() => {
+    const updateEffectiveTheme = () => {
+      if (theme === 'system') {
+        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        setEffectiveTheme(isDark ? 'dark' : 'light');
+      } else {
+        setEffectiveTheme(theme);
+      }
+    };
+
+    updateEffectiveTheme();
+
+    if (theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handler = () => updateEffectiveTheme();
+      mediaQuery.addEventListener('change', handler);
+      return () => mediaQuery.removeEventListener('change', handler);
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', effectiveTheme === 'dark');
+  }, [effectiveTheme]);
 
   useEffect(() => {
     if (api && isLoggedIn) {
@@ -73,6 +104,11 @@ function App() {
     setNotes([]);
     setSelectedNoteId(null);
     setIsLoggedIn(false);
+  };
+
+  const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
   };
 
   const handleCreateNote = async () => {
@@ -152,6 +188,8 @@ function App() {
         onSync={syncNotes}
         onLogout={handleLogout}
         username={username}
+        theme={theme}
+        onThemeChange={handleThemeChange}
         searchText={searchText}
         onSearchChange={setSearchText}
         showFavoritesOnly={showFavoritesOnly}

@@ -142,22 +142,22 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-white">
-      <div className="border-b border-gray-200 p-4 flex items-center justify-between">
+    <div className="flex-1 flex flex-col bg-white dark:bg-gray-900">
+      <div className="border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
         <input
           type="text"
           value={localTitle}
           onChange={(e) => handleTitleChange(e.target.value)}
           placeholder="Note Title"
-          className="flex-1 text-2xl font-bold border-none outline-none focus:ring-0"
+          className="flex-1 text-2xl font-bold border-none outline-none focus:ring-0 bg-transparent text-gray-900 dark:text-gray-100"
         />
         
         <div className="flex items-center space-x-2 ml-4">
           {hasUnsavedChanges && (
-            <span className="text-sm text-orange-500">Unsaved changes</span>
+            <span className="text-sm text-orange-500 dark:text-orange-400">Unsaved changes</span>
           )}
           {isSaving && (
-            <span className="text-sm text-gray-500">Saving...</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">Saving...</span>
           )}
           
           <button
@@ -195,17 +195,17 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
             value={localCategory}
             onChange={(e) => handleCategoryChange(e.target.value)}
             placeholder="Category"
-            className="w-32 px-3 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-32 px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
       </div>
 
       {/* Formatting Toolbar */}
-      <div className="border-b border-gray-200 px-4 py-2 flex items-center space-x-1 bg-gray-50">
+      <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between bg-gray-50 dark:bg-gray-800">
         <button
           onClick={() => editor.chain().focus().toggleBold().run()}
           className={`p-2 rounded transition-colors ${
-            editor.isActive('bold') ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200'
+            editor.isActive('bold') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
           }`}
           title="Bold"
         >
