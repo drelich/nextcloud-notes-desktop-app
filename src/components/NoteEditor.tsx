@@ -7,6 +7,7 @@ import TurndownService from 'turndown';
 import { marked } from 'marked';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { message } from '@tauri-apps/plugin-dialog';
 import { Note } from '../types';
 
 interface NoteEditorProps {
@@ -154,8 +155,9 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
 
       // Create a temporary container with better styling for PDF
       const container = document.createElement('div');
-      container.style.width = '210mm'; // A4 width
-      container.style.padding = '20mm';
+      const contentWidth = 170; // A4 width (210mm) - margins (20mm each side)
+      container.style.width = `${contentWidth}mm`;
+      container.style.padding = '0';
       container.style.backgroundColor = 'white';
       container.style.position = 'absolute';
       container.style.left = '-9999px';
@@ -188,7 +190,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
       // Remove temporary container
       document.body.removeChild(container);
 
-      // Create PDF with multi-page support
+      // Create PDF with multi-page support and margins
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -197,36 +199,54 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
 
       const pageWidth = 210; // A4 width in mm
       const pageHeight = 297; // A4 height in mm
-      const imgWidth = pageWidth;
+      const margin = 20; // 20mm margins on all sides
+      const contentWidthMm = pageWidth - (2 * margin);
+      const contentHeightMm = pageHeight - (2 * margin);
+      
+      const imgWidth = contentWidthMm;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
       let heightLeft = imgHeight;
       let position = 0;
 
-      // Add first page
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+      // Add first page with margins
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, margin + position, imgWidth, imgHeight);
+      heightLeft -= contentHeightMm;
 
       // Add additional pages if needed
       while (heightLeft > 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, margin + position, imgWidth, imgHeight);
+        heightLeft -= contentHeightMm;
       }
       
       // Save the PDF
       const fileName = `${localTitle || 'note'}.pdf`;
       pdf.save(fileName);
       
-      // Show success message
-      setTimeout(() => {
-        alert(`PDF exported successfully!\n\nFile: ${fileName}\nLocation: Downloads folder`);
+      // Show success message using Tauri dialog
+      setTimeout(async () => {
+        try {
+          await message(`PDF exported successfully!\n\nFile: ${fileName}\nLocation: Downloads folder`, {
+            title: 'Export Complete',
+            kind: 'info',
+          });
+        } catch (err) {
+          console.log('Dialog shown successfully or not available');
+        }
         setIsExportingPDF(false);
       }, 500);
     } catch (error) {
       console.error('PDF export failed:', error);
-      alert('Failed to export PDF. Please try again.');
+      try {
+        await message('Failed to export PDF. Please try again.', {
+          title: 'Export Failed',
+          kind: 'error',
+        });
+      } catch (err) {
+        console.error('Could not show error dialog');
+      }
       setIsExportingPDF(false);
     }
   };
