@@ -8,7 +8,6 @@ import { FloatingToolbar } from './FloatingToolbar';
 interface NoteEditorProps {
   note: Note | null;
   onUpdateNote: (note: Note) => void;
-  fontSize: number;
   onUnsavedChanges?: (hasChanges: boolean) => void;
   categories: string[];
   isFocusMode?: boolean;
@@ -20,7 +19,7 @@ interface NoteEditorProps {
 }
 
 
-export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges, categories, isFocusMode, onToggleFocusMode, editorFont = 'Source Code Pro', editorFontSize = 14, previewFont = 'Merriweather', previewFontSize = 16 }: NoteEditorProps) {
+export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, isFocusMode, onToggleFocusMode, editorFont = 'Source Code Pro', editorFontSize = 14, previewFont = 'Merriweather', previewFontSize = 16 }: NoteEditorProps) {
   const [localTitle, setLocalTitle] = useState('');
   const [localContent, setLocalContent] = useState('');
   const [localCategory, setLocalCategory] = useState('');

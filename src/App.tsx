@@ -17,7 +17,6 @@ function App() {
   const [manualCategories, setManualCategories] = useState<string[]>([]);
   const [isCategoriesCollapsed, setIsCategoriesCollapsed] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
-  const [fontSize] = useState(14);
   const [username, setUsername] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>('light');
@@ -274,7 +273,6 @@ function App() {
       <NoteEditor
         note={selectedNote}
         onUpdateNote={handleUpdateNote}
-        fontSize={fontSize}
         onUnsavedChanges={setHasUnsavedChanges}
         categories={categories}
         isFocusMode={isFocusMode}
