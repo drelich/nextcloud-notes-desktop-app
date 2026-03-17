@@ -48,6 +48,11 @@ export function NotesList({
   const handleDeleteClick = (note: Note, e: React.MouseEvent) => {
     e.stopPropagation();
     
+    // Prevent deletion if there are unsaved changes on a different note
+    if (hasUnsavedChanges && note.id !== selectedNoteId) {
+      return;
+    }
+    
     if (deleteClickedId === note.id) {
       // Second click - actually delete
       onDeleteNote(note);
