@@ -116,7 +116,7 @@ code {
   padding: 0.125rem 0.25rem;
   border-radius: 0.25rem;
   font-family: 'Courier New', monospace;
-  font-size: 0.9em;
+  font-size: 1.1em;
   color: #1f2937;
 }
 
@@ -167,6 +167,10 @@ code {
 .ProseMirror li {
   margin: 0.25em 0;
   color: #111827;
+}
+
+.ProseMirror li p {
+  margin: 0;
 }
 
 .dark .ProseMirror li {

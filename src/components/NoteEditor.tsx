@@ -167,6 +167,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
       titleElement.style.fontSize = '24px';
       titleElement.style.fontWeight = 'bold';
       titleElement.style.color = '#000000';
+      titleElement.style.textAlign = 'center';
       container.appendChild(titleElement);
       
       // Clone and add content
