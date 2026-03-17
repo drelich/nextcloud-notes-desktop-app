@@ -6,7 +6,6 @@ import Strike from '@tiptap/extension-strike';
 import TurndownService from 'turndown';
 import { marked } from 'marked';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { message } from '@tauri-apps/plugin-dialog';
 import { Note } from '../types';
 
