@@ -153,22 +153,41 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
         return;
       }
 
-      // Create a temporary container with better styling for PDF
+      // Create PDF
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const pageWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
+      const margin = 20; // 20mm margins on all sides
+      const contentWidth = pageWidth - (2 * margin); // 170mm
+      const contentHeight = pageHeight - (2 * margin); // 257mm
+
+      // Create a temporary container with proper page dimensions
       const container = document.createElement('div');
-      const contentWidth = 170; // A4 width (210mm) - margins (20mm each side)
       container.style.width = `${contentWidth}mm`;
+      container.style.minHeight = `${contentHeight}mm`;
       container.style.padding = '0';
       container.style.backgroundColor = 'white';
       container.style.position = 'absolute';
       container.style.left = '-9999px';
+      container.style.top = '0';
       container.style.fontFamily = 'Arial, sans-serif';
+      container.style.fontSize = '12px';
+      container.style.lineHeight = '1.6';
+      container.style.color = '#000000';
       
       // Add title
       const titleElement = document.createElement('h1');
       titleElement.textContent = localTitle || 'Untitled';
+      titleElement.style.marginTop = '0';
       titleElement.style.marginBottom = '20px';
       titleElement.style.fontSize = '24px';
       titleElement.style.fontWeight = 'bold';
+      titleElement.style.color = '#000000';
       container.appendChild(titleElement);
       
       // Clone and add content
@@ -180,46 +199,57 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
       
       document.body.appendChild(container);
 
-      // Convert to canvas
-      const canvas = await html2canvas(container, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-      });
+      // Get the total height of content
+      const totalHeight = container.scrollHeight;
+      const pixelsPerMm = container.offsetWidth / contentWidth;
+      const contentHeightPx = contentHeight * pixelsPerMm;
 
-      // Remove temporary container
-      document.body.removeChild(container);
+      // Calculate number of pages needed
+      const numPages = Math.ceil(totalHeight / contentHeightPx);
 
-      // Create PDF with multi-page support and margins
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      });
+      // Render each page separately
+      for (let pageNum = 0; pageNum < numPages; pageNum++) {
+        // Create a wrapper for this page's content
+        const pageWrapper = document.createElement('div');
+        pageWrapper.style.width = `${contentWidth}mm`;
+        pageWrapper.style.height = `${contentHeight}mm`;
+        pageWrapper.style.overflow = 'hidden';
+        pageWrapper.style.position = 'absolute';
+        pageWrapper.style.left = '-9999px';
+        pageWrapper.style.top = '0';
+        pageWrapper.style.backgroundColor = 'white';
 
-      const pageWidth = 210; // A4 width in mm
-      const pageHeight = 297; // A4 height in mm
-      const margin = 20; // 20mm margins on all sides
-      const contentWidthMm = pageWidth - (2 * margin);
-      const contentHeightMm = pageHeight - (2 * margin);
-      
-      const imgWidth = contentWidthMm;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      let heightLeft = imgHeight;
-      let position = 0;
+        // Clone the container and position it to show only this page's content
+        const pageContent = container.cloneNode(true) as HTMLElement;
+        pageContent.style.position = 'relative';
+        pageContent.style.top = `-${pageNum * contentHeightPx}px`;
+        pageWrapper.appendChild(pageContent);
+        
+        document.body.appendChild(pageWrapper);
 
-      // Add first page with margins
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, margin + position, imgWidth, imgHeight);
-      heightLeft -= contentHeightMm;
+        // Render this page to canvas
+        const canvas = await html2canvas(pageWrapper, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          width: pageWrapper.offsetWidth,
+          height: pageWrapper.offsetHeight,
+        });
 
-      // Add additional pages if needed
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, margin + position, imgWidth, imgHeight);
-        heightLeft -= contentHeightMm;
+        // Remove the page wrapper
+        document.body.removeChild(pageWrapper);
+
+        // Add page to PDF (add new page if not first)
+        if (pageNum > 0) {
+          pdf.addPage();
+        }
+
+        const imgData = canvas.toDataURL('image/png');
+        pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, contentHeight);
       }
+
+      // Remove the original container
+      document.body.removeChild(container);
       
       // Save the PDF
       const fileName = `${localTitle || 'note'}.pdf`;
