@@ -16,6 +16,7 @@ function App() {
   const [username, setUsername] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>('light');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   useEffect(() => {
     const savedServer = localStorage.getItem('serverURL');
@@ -193,11 +194,13 @@ function App() {
         onSearchChange={setSearchText}
         showFavoritesOnly={showFavoritesOnly}
         onToggleFavorites={() => setShowFavoritesOnly(!showFavoritesOnly)}
+        hasUnsavedChanges={hasUnsavedChanges}
       />
       <NoteEditor
         note={selectedNote}
         onUpdateNote={handleUpdateNote}
         fontSize={fontSize}
+        onUnsavedChanges={setHasUnsavedChanges}
       />
     </div>
   );

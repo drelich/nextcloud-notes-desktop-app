@@ -11,6 +11,7 @@ interface NoteEditorProps {
   note: Note | null;
   onUpdateNote: (note: Note) => void;
   fontSize: number;
+  onUnsavedChanges?: (hasChanges: boolean) => void;
 }
 
 const turndownService = new TurndownService({
@@ -18,13 +19,18 @@ const turndownService = new TurndownService({
   codeBlockStyle: 'fenced',
 });
 
-export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
+export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: NoteEditorProps) {
   const [localTitle, setLocalTitle] = useState('');
   const [localFavorite, setLocalFavorite] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [titleManuallyEdited, setTitleManuallyEdited] = useState(false);
   const previousNoteIdRef = useRef<number | null>(null);
+
+  // Notify parent component when unsaved changes state changes
+  useEffect(() => {
+    onUnsavedChanges?.(hasUnsavedChanges);
+  }, [hasUnsavedChanges, onUnsavedChanges]);
 
   const editor = useEditor({
     extensions: [

@@ -16,6 +16,7 @@ interface NotesListProps {
   onSearchChange: (text: string) => void;
   showFavoritesOnly: boolean;
   onToggleFavorites: () => void;
+  hasUnsavedChanges: boolean;
 }
 
 export function NotesList({
@@ -33,6 +34,7 @@ export function NotesList({
   onSearchChange,
   showFavoritesOnly,
   onToggleFavorites,
+  hasUnsavedChanges,
 }: NotesListProps) {
   const [isSyncing, setIsSyncing] = React.useState(false);
   const [deleteClickedId, setDeleteClickedId] = React.useState<number | null>(null);
@@ -144,10 +146,21 @@ export function NotesList({
           notes.map((note) => (
             <div
               key={note.id}
-              onClick={() => onSelectNote(note.id)}
-              className={`p-3 border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group ${
-                note.id === selectedNoteId ? 'bg-blue-50 dark:bg-gray-800 border-l-4 border-l-blue-500' : ''
+              onClick={() => {
+                // Prevent switching if current note has unsaved changes
+                if (hasUnsavedChanges && note.id !== selectedNoteId) {
+                  return;
+                }
+                onSelectNote(note.id);
+              }}
+              className={`p-3 border-b border-gray-200 dark:border-gray-700 transition-colors group ${
+                note.id === selectedNoteId 
+                  ? 'bg-blue-50 dark:bg-gray-800 border-l-4 border-l-blue-500' 
+                  : hasUnsavedChanges 
+                    ? 'cursor-not-allowed opacity-50' 
+                    : 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
+              title={hasUnsavedChanges && note.id !== selectedNoteId ? 'Save current note before switching' : ''}
             >
               <div className="flex items-start justify-between mb-1">
                 <div className="flex items-center flex-1 min-w-0">
