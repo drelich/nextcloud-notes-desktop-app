@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { LoginView } from './components/LoginView';
 import { NotesList } from './components/NotesList';
 import { NoteEditor } from './components/NoteEditor';
+import { CategoriesSidebar } from './components/CategoriesSidebar';
 import { NextcloudAPI } from './api/nextcloud';
 import { Note } from './types';
 
@@ -12,6 +13,10 @@ function App() {
   const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
   const [searchText, setSearchText] = useState('');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [manualCategories, setManualCategories] = useState<string[]>([]);
+  const [isCategoriesCollapsed, setIsCategoriesCollapsed] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(false);
   const [fontSize] = useState(14);
   const [username, setUsername] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
@@ -124,11 +129,17 @@ function App() {
         hour12: false,
       }).replace(/[/:]/g, '-').replace(', ', ' ');
       
-      const note = await api.createNote(`New Note ${timestamp}`, '', '');
+      const note = await api.createNote(`New Note ${timestamp}`, '', selectedCategory);
       setNotes([note, ...notes]);
       setSelectedNoteId(note.id);
     } catch (error) {
       console.error('Create note failed:', error);
+    }
+  };
+
+  const handleCreateCategory = (name: string) => {
+    if (!manualCategories.includes(name)) {
+      setManualCategories([...manualCategories, name]);
     }
   };
 
@@ -161,7 +172,11 @@ function App() {
     }
   };
 
+  const categoriesFromNotes = Array.from(new Set(notes.map(n => n.category).filter(c => c)));
+  const categories = Array.from(new Set([...categoriesFromNotes, ...manualCategories])).sort();
+
   const filteredNotes = notes.filter(note => {
+    if (selectedCategory && note.category !== selectedCategory) return false;
     if (showFavoritesOnly && !note.favorite) return false;
     if (searchText) {
       const search = searchText.toLowerCase();
@@ -179,28 +194,43 @@ function App() {
 
   return (
     <div className="flex h-screen">
-      <NotesList
-        notes={filteredNotes}
-        selectedNoteId={selectedNoteId}
-        onSelectNote={setSelectedNoteId}
-        onCreateNote={handleCreateNote}
-        onDeleteNote={handleDeleteNote}
-        onSync={syncNotes}
-        onLogout={handleLogout}
-        username={username}
-        theme={theme}
-        onThemeChange={handleThemeChange}
-        searchText={searchText}
-        onSearchChange={setSearchText}
-        showFavoritesOnly={showFavoritesOnly}
-        onToggleFavorites={() => setShowFavoritesOnly(!showFavoritesOnly)}
-        hasUnsavedChanges={hasUnsavedChanges}
-      />
+      {!isFocusMode && (
+        <>
+          <CategoriesSidebar
+            categories={categories}
+            selectedCategory={selectedCategory}
+            onSelectCategory={setSelectedCategory}
+            onCreateCategory={handleCreateCategory}
+            isCollapsed={isCategoriesCollapsed}
+            onToggleCollapse={() => setIsCategoriesCollapsed(!isCategoriesCollapsed)}
+            username={username}
+            onLogout={handleLogout}
+            theme={theme}
+            onThemeChange={handleThemeChange}
+          />
+          <NotesList
+            notes={filteredNotes}
+            selectedNoteId={selectedNoteId}
+            onSelectNote={setSelectedNoteId}
+            onCreateNote={handleCreateNote}
+            onDeleteNote={handleDeleteNote}
+            onSync={syncNotes}
+            searchText={searchText}
+            onSearchChange={setSearchText}
+            showFavoritesOnly={showFavoritesOnly}
+            onToggleFavorites={() => setShowFavoritesOnly(!showFavoritesOnly)}
+            hasUnsavedChanges={hasUnsavedChanges}
+          />
+        </>
+      )}
       <NoteEditor
         note={selectedNote}
         onUpdateNote={handleUpdateNote}
         fontSize={fontSize}
         onUnsavedChanges={setHasUnsavedChanges}
+        categories={categories}
+        isFocusMode={isFocusMode}
+        onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
       />
     </div>
   );

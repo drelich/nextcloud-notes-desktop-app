@@ -1,117 +1,97 @@
 import { useState, useEffect, useRef } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
-import Strike from '@tiptap/extension-strike';
-import TurndownService from 'turndown';
 import { marked } from 'marked';
 import jsPDF from 'jspdf';
 import { message } from '@tauri-apps/plugin-dialog';
 import { Note } from '../types';
+import { FloatingToolbar } from './FloatingToolbar';
 
 interface NoteEditorProps {
   note: Note | null;
   onUpdateNote: (note: Note) => void;
   fontSize: number;
   onUnsavedChanges?: (hasChanges: boolean) => void;
+  categories: string[];
+  isFocusMode?: boolean;
+  onToggleFocusMode?: () => void;
 }
 
-const turndownService = new TurndownService({
-  headingStyle: 'atx',
-  codeBlockStyle: 'fenced',
-});
 
-export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: NoteEditorProps) {
+export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges, categories, isFocusMode, onToggleFocusMode }: NoteEditorProps) {
   const [localTitle, setLocalTitle] = useState('');
+  const [localContent, setLocalContent] = useState('');
+  const [localCategory, setLocalCategory] = useState('');
   const [localFavorite, setLocalFavorite] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [titleManuallyEdited, setTitleManuallyEdited] = useState(false);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
   const previousNoteIdRef = useRef<number | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Notify parent component when unsaved changes state changes
   useEffect(() => {
     onUnsavedChanges?.(hasUnsavedChanges);
   }, [hasUnsavedChanges, onUnsavedChanges]);
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Underline,
-      Strike,
-    ],
-    content: '',
-    editorProps: {
-      attributes: {
-        class: 'prose prose-slate max-w-none focus:outline-none p-8',
-        style: `font-size: ${fontSize}px`,
-      },
-    },
-    onUpdate: ({ editor }) => {
-      setHasUnsavedChanges(true);
-      
-      if (!titleManuallyEdited) {
-        const text = editor.getText();
-        const firstLine = text.split('\n')[0].trim();
-        if (firstLine) {
-          setLocalTitle(firstLine.substring(0, 50));
-        }
+  // Handle Escape key to exit focus mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFocusMode && onToggleFocusMode) {
+        onToggleFocusMode();
       }
-    },
-  });
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isFocusMode, onToggleFocusMode]);
+
+  // Auto-resize textarea when content changes
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [localContent]);
 
   useEffect(() => {
     const loadNewNote = () => {
-      if (note && editor) {
+      if (note) {
         setLocalTitle(note.title);
+        setLocalContent(note.content);
+        setLocalCategory(note.category || '');
         setLocalFavorite(note.favorite);
         setHasUnsavedChanges(false);
         
-        // Only reset titleManuallyEdited when switching to a different note
-        // Check if the current title matches the first line of content
         const firstLine = note.content.split('\n')[0].replace(/^#+\s*/, '').trim();
         const titleMatchesFirstLine = note.title === firstLine || note.title === firstLine.substring(0, 50);
         setTitleManuallyEdited(!titleMatchesFirstLine);
         
         previousNoteIdRef.current = note.id;
-        
-        // Convert markdown to HTML using marked library
-        const html = marked.parse(note.content || '', { async: false }) as string;
-        editor.commands.setContent(html);
       }
     };
 
-    // If switching notes, save the previous note first
     if (previousNoteIdRef.current !== null && previousNoteIdRef.current !== note?.id) {
-      // Save if there are unsaved changes
-      if (hasUnsavedChanges && editor) {
+      if (hasUnsavedChanges) {
         handleSave();
       }
-      // Load new note after a brief delay to ensure save completes
       setTimeout(loadNewNote, 100);
     } else {
-      // First load or same note, load immediately
       loadNewNote();
     }
-  }, [note?.id, editor]);
+  }, [note?.id]);
 
   const handleSave = () => {
-    if (!note || !hasUnsavedChanges || !editor) return;
+    if (!note || !hasUnsavedChanges) return;
     
-    // Convert HTML to markdown
-    const html = editor.getHTML();
-    const markdown = turndownService.turndown(html);
-    
-    console.log('Saving note content length:', markdown.length);
-    console.log('Last 50 chars:', markdown.slice(-50));
+    console.log('Saving note content length:', localContent.length);
+    console.log('Last 50 chars:', localContent.slice(-50));
     setIsSaving(true);
     setHasUnsavedChanges(false);
     onUpdateNote({
       ...note,
       title: localTitle,
-      content: markdown,
-      category: '',
+      content: localContent,
+      category: localCategory,
       favorite: localFavorite,
     });
     setTimeout(() => setIsSaving(false), 500);
@@ -123,43 +103,44 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
     setHasUnsavedChanges(true);
   };
 
-  const handleDiscard = () => {
-    if (!note || !editor) return;
+  const handleContentChange = (value: string) => {
+    setLocalContent(value);
+    setHasUnsavedChanges(true);
     
-    // Reload original note content
+    if (!titleManuallyEdited) {
+      const firstLine = value.split('\n')[0].replace(/^#+\s*/, '').trim();
+      if (firstLine) {
+        setLocalTitle(firstLine.substring(0, 50));
+      }
+    }
+  };
+
+  const handleDiscard = () => {
+    if (!note) return;
+    
     setLocalTitle(note.title);
+    setLocalContent(note.content);
+    setLocalCategory(note.category || '');
     setLocalFavorite(note.favorite);
     setHasUnsavedChanges(false);
     
     const firstLine = note.content.split('\n')[0].replace(/^#+\s*/, '').trim();
     const titleMatchesFirstLine = note.title === firstLine || note.title === firstLine.substring(0, 50);
     setTitleManuallyEdited(!titleMatchesFirstLine);
-    
-    const html = marked.parse(note.content || '', { async: false }) as string;
-    editor.commands.setContent(html);
   };
 
   const handleExportPDF = async () => {
-    if (!note || !editor) return;
+    if (!note) return;
 
     setIsExportingPDF(true);
 
     try {
-      // Get the editor content element
-      const editorElement = document.querySelector('.ProseMirror');
-      if (!editorElement) {
-        setIsExportingPDF(false);
-        return;
-      }
-
-      // Create a container with title and content
       const container = document.createElement('div');
       container.style.fontFamily = 'Arial, sans-serif';
       container.style.fontSize = '12px';
       container.style.lineHeight = '1.6';
       container.style.color = '#000000';
       
-      // Add title
       const titleElement = document.createElement('h1');
       titleElement.textContent = localTitle || 'Untitled';
       titleElement.style.marginTop = '0';
@@ -170,12 +151,13 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
       titleElement.style.textAlign = 'center';
       container.appendChild(titleElement);
       
-      // Clone and add content
-      const contentClone = editorElement.cloneNode(true) as HTMLElement;
-      contentClone.style.fontSize = '12px';
-      contentClone.style.lineHeight = '1.6';
-      contentClone.style.color = '#000000';
-      container.appendChild(contentClone);
+      const contentElement = document.createElement('div');
+      const html = marked.parse(localContent || '', { async: false }) as string;
+      contentElement.innerHTML = html;
+      contentElement.style.fontSize = '12px';
+      contentElement.style.lineHeight = '1.6';
+      contentElement.style.color = '#000000';
+      container.appendChild(contentElement);
 
       // Create PDF using jsPDF's html() method (like dompdf)
       const pdf = new jsPDF({
@@ -229,16 +211,161 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
       onUpdateNote({
         ...note,
         title: localTitle,
-        content: editor ? turndownService.turndown(editor.getHTML()) : note.content,
-        category: '',
+        content: localContent,
+        category: localCategory,
         favorite: !localFavorite,
       });
     }
   };
 
+  const handleCategoryChange = (category: string) => {
+    setLocalCategory(category);
+    setHasUnsavedChanges(true);
+  };
+
+  const handleFormat = (format: 'bold' | 'italic' | 'strikethrough' | 'code' | 'codeblock' | 'quote' | 'ul' | 'ol' | 'link' | 'h1' | 'h2' | 'h3') => {
+    if (!textareaRef.current) return;
+    
+    const textarea = textareaRef.current;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = localContent.substring(start, end);
+    
+    if (!selectedText) return;
+    
+    let formattedText = '';
+    let cursorOffset = 0;
+    let isRemoving = false;
+    
+    // Helper to check and remove inline formatting
+    const toggleInline = (text: string, wrapper: string): { result: string; removed: boolean } => {
+      const escaped = wrapper.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`^${escaped}(.+)${escaped}$`, 's');
+      const match = text.match(regex);
+      if (match) {
+        return { result: match[1], removed: true };
+      }
+      return { result: `${wrapper}${text}${wrapper}`, removed: false };
+    };
+    
+    // Helper to check and remove line-prefix formatting
+    const toggleLinePrefix = (text: string, prefixRegex: RegExp, addPrefix: (line: string, i: number) => string): { result: string; removed: boolean } => {
+      const lines = text.split('\n');
+      const allHavePrefix = lines.every(line => prefixRegex.test(line));
+      if (allHavePrefix) {
+        return { 
+          result: lines.map(line => line.replace(prefixRegex, '')).join('\n'), 
+          removed: true 
+        };
+      }
+      return { 
+        result: lines.map((line, i) => addPrefix(line, i)).join('\n'), 
+        removed: false 
+      };
+    };
+    
+    switch (format) {
+      case 'bold': {
+        const { result, removed } = toggleInline(selectedText, '**');
+        formattedText = result;
+        isRemoving = removed;
+        break;
+      }
+      case 'italic': {
+        const { result, removed } = toggleInline(selectedText, '*');
+        formattedText = result;
+        isRemoving = removed;
+        break;
+      }
+      case 'strikethrough': {
+        const { result, removed } = toggleInline(selectedText, '~~');
+        formattedText = result;
+        isRemoving = removed;
+        break;
+      }
+      case 'code': {
+        const { result, removed } = toggleInline(selectedText, '`');
+        formattedText = result;
+        isRemoving = removed;
+        break;
+      }
+      case 'codeblock': {
+        const codeBlockMatch = selectedText.match(/^```\n?([\s\S]*?)\n?```$/);
+        if (codeBlockMatch) {
+          formattedText = codeBlockMatch[1];
+          isRemoving = true;
+        } else {
+          formattedText = `\`\`\`\n${selectedText}\n\`\`\``;
+        }
+        break;
+      }
+      case 'quote': {
+        const { result, removed } = toggleLinePrefix(selectedText, /^>\s?/, (line) => `> ${line}`);
+        formattedText = result;
+        isRemoving = removed;
+        break;
+      }
+      case 'ul': {
+        const { result, removed } = toggleLinePrefix(selectedText, /^[-*+]\s/, (line) => `- ${line}`);
+        formattedText = result;
+        isRemoving = removed;
+        break;
+      }
+      case 'ol': {
+        const { result, removed } = toggleLinePrefix(selectedText, /^\d+\.\s/, (line, i) => `${i + 1}. ${line}`);
+        formattedText = result;
+        isRemoving = removed;
+        break;
+      }
+      case 'link': {
+        const linkMatch = selectedText.match(/^\[(.+)\]\((.+)\)$/);
+        if (linkMatch) {
+          formattedText = linkMatch[1]; // Just return the text part
+          isRemoving = true;
+        } else {
+          formattedText = `[${selectedText}](url)`;
+          cursorOffset = formattedText.length - 4;
+        }
+        break;
+      }
+      case 'h1': {
+        const { result, removed } = toggleLinePrefix(selectedText, /^#\s/, (line) => `# ${line}`);
+        formattedText = result;
+        isRemoving = removed;
+        break;
+      }
+      case 'h2': {
+        const { result, removed } = toggleLinePrefix(selectedText, /^##\s/, (line) => `## ${line}`);
+        formattedText = result;
+        isRemoving = removed;
+        break;
+      }
+      case 'h3': {
+        const { result, removed } = toggleLinePrefix(selectedText, /^###\s/, (line) => `### ${line}`);
+        formattedText = result;
+        isRemoving = removed;
+        break;
+      }
+    }
+    
+    const newContent = localContent.substring(0, start) + formattedText + localContent.substring(end);
+    setLocalContent(newContent);
+    setHasUnsavedChanges(true);
+    
+    setTimeout(() => {
+      textarea.focus();
+      if (format === 'link' && !isRemoving) {
+        // Select "url" for easy replacement
+        textarea.setSelectionRange(start + cursorOffset, start + cursorOffset + 3);
+      } else {
+        textarea.setSelectionRange(start, start + formattedText.length);
+      }
+    }, 0);
+  };
+
   if (!note) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-white text-gray-400">
+      <div className="flex-1 flex items-center justify-center bg-white dark:bg-gray-900 text-gray-400">
         <div className="text-center">
           <svg className="w-20 h-20 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -250,90 +377,28 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
     );
   }
 
-  if (!editor) {
-    return null;
-  }
-
   return (
     <div className="flex-1 flex flex-col bg-white dark:bg-gray-900">
-      <div className="border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
-        <input
-          type="text"
-          value={localTitle}
-          onChange={(e) => handleTitleChange(e.target.value)}
-          placeholder="Note Title"
-          className="flex-1 text-2xl font-bold border-none outline-none focus:ring-0 bg-transparent text-gray-900 dark:text-gray-100"
-        />
-        
-        <div className="flex items-center space-x-2 ml-4">
-          {hasUnsavedChanges && (
-            <span className="text-sm text-orange-500 dark:text-orange-400">Unsaved changes</span>
-          )}
-          {isSaving && (
-            <span className="text-sm text-gray-500 dark:text-gray-400">Saving...</span>
-          )}
+      {/* Header */}
+      <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <input
+              type="text"
+              value={localTitle}
+              onChange={(e) => handleTitleChange(e.target.value)}
+              placeholder="Note Title"
+              className="w-full text-2xl font-semibold border-none outline-none focus:ring-0 bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400"
+            />
+          </div>
           
-          <button
-            onClick={handleSave}
-            disabled={!hasUnsavedChanges || isSaving}
-            className={`p-2 rounded-lg transition-colors ${
-              hasUnsavedChanges && !isSaving
-                ? 'bg-blue-500 text-white hover:bg-blue-600'
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-            }`}
-            title="Save Note"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </button>
-
-          <button
-            onClick={handleDiscard}
-            disabled={!hasUnsavedChanges || isSaving}
-            className={`p-2 rounded-lg transition-colors ${
-              hasUnsavedChanges && !isSaving
-                ? 'bg-gray-500 dark:bg-gray-600 text-white hover:bg-gray-600 dark:hover:bg-gray-700'
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-            }`}
-            title="Discard Changes"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          
-          <button
-            onClick={handleExportPDF}
-            disabled={isExportingPDF}
-            className={`p-2 rounded-lg transition-colors ${
-              isExportingPDF
-                ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 cursor-wait'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-            }`}
-            title={isExportingPDF ? "Generating PDF..." : "Export as PDF"}
-          >
-            {isExportingPDF ? (
-              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/>
-                <path d="M14 2v6h6"/>
-                <path fill="white" d="M8 13h8v1H8v-1zm0 2h8v1H8v-1zm0 2h5v1H8v-1z"/>
-              </svg>
-            )}
-          </button>
-
           <button
             onClick={handleFavoriteToggle}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
             title={localFavorite ? "Remove from Favorites" : "Add to Favorites"}
           >
             <svg 
-              className={`w-6 h-6 ${localFavorite ? 'text-yellow-500 fill-current' : 'text-gray-400 dark:text-gray-500'}`}
+              className={`w-5 h-5 ${localFavorite ? 'text-yellow-500 fill-current' : 'text-gray-400 dark:text-gray-500'}`}
               fill={localFavorite ? "currentColor" : "none"}
               stroke="currentColor" 
               viewBox="0 0 24 24"
@@ -344,143 +409,183 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
         </div>
       </div>
 
-      {/* Formatting Toolbar */}
-      <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between bg-gray-50 dark:bg-gray-800">
-        <button
-          onClick={() => editor.chain().focus().toggleBold().run()}
-          className={`p-2 rounded transition-colors ${
-            editor.isActive('bold') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-          }`}
-          title="Bold"
-        >
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M13.5,15.5H10V12.5H13.5A1.5,1.5 0 0,1 15,14A1.5,1.5 0 0,1 13.5,15.5M10,6.5H13A1.5,1.5 0 0,1 14.5,8A1.5,1.5 0 0,1 13,9.5H10M15.6,10.79C16.57,10.11 17.25,9 17.25,8C17.25,5.74 15.5,4 13.25,4H7V18H14.04C16.14,18 17.75,16.3 17.75,14.21C17.75,12.69 16.89,11.39 15.6,10.79Z" />
-          </svg>
-        </button>
+      {/* Toolbar */}
+      <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-3 bg-gray-50 dark:bg-gray-800/50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {/* Category Selector */}
+            <div className="relative">
+              <select
+                value={localCategory}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                className="appearance-none pl-8 pr-8 py-1.5 text-sm rounded-full bg-gray-100 dark:bg-gray-700 border-0 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer transition-colors"
+              >
+                <option value="">No Category</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+              <svg className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              <svg className="w-3 h-3 absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
 
-        <button
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-          className={`p-2 rounded transition-colors ${
-            editor.isActive('italic') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-          }`}
-          title="Italic"
-        >
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M10,4V7H12.21L8.79,15H6V18H14V15H11.79L15.21,7H18V4H10Z" />
-          </svg>
-        </button>
+            {/* Preview Toggle */}
+            <button
+              onClick={() => setIsPreviewMode(!isPreviewMode)}
+              className={`px-3 py-1.5 rounded-full transition-colors flex items-center gap-1.5 text-sm ${
+                isPreviewMode 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+              title={isPreviewMode ? "Edit Mode" : "Preview Mode"}
+            >
+              {isPreviewMode ? (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  <span>Edit</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  <span>Preview</span>
+                </>
+              )}
+            </button>
+          </div>
 
-        <button
-          onClick={() => editor.chain().focus().toggleStrike().run()}
-          className={`p-2 rounded transition-colors ${
-            editor.isActive('strike') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-          }`}
-          title="Strikethrough"
-        >
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M3,14H21V12H3M5,4V7H10V10H14V7H19V4M10,19H14V16H10V19Z" />
-          </svg>
-        </button>
+          <div className="flex items-center gap-2">
+            {/* Status */}
+            {(hasUnsavedChanges || isSaving) && (
+              <span className={`text-xs px-2 py-1 rounded-full ${
+                isSaving 
+                  ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400' 
+                  : 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
+              }`}>
+                {isSaving ? 'Saving...' : 'Unsaved'}
+              </span>
+            )}
 
-        <button
-          onClick={() => editor.chain().focus().toggleUnderline().run()}
-          className={`p-2 rounded transition-colors ${
-            editor.isActive('underline') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-          }`}
-          title="Underline"
-        >
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M5,21H19V19H5V21M12,17A6,6 0 0,0 18,11V3H15.5V11A3.5,3.5 0 0,1 12,14.5A3.5,3.5 0 0,1 8.5,11V3H6V11A6,6 0 0,0 12,17Z" />
-          </svg>
-        </button>
+            {/* Action Buttons */}
+            <div className="flex items-center gap-1 pl-2 border-l border-gray-200 dark:border-gray-700">
+              <button
+                onClick={handleSave}
+                disabled={!hasUnsavedChanges || isSaving}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  hasUnsavedChanges && !isSaving
+                    ? 'text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                    : 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                }`}
+                title="Save Note"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </button>
 
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
+              <button
+                onClick={handleDiscard}
+                disabled={!hasUnsavedChanges || isSaving}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  hasUnsavedChanges && !isSaving
+                    ? 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    : 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                }`}
+                title="Discard Changes"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              
+              <button
+                onClick={handleExportPDF}
+                disabled={isExportingPDF}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  isExportingPDF
+                    ? 'text-blue-500 cursor-wait'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+                title={isExportingPDF ? "Generating PDF..." : "Export as PDF"}
+              >
+                {isExportingPDF ? (
+                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                )}
+              </button>
 
-        <button
-          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-          className={`px-2 py-1 rounded transition-colors font-bold text-sm ${
-            editor.isActive('heading', { level: 1 }) ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-          }`}
-          title="Heading 1"
-        >
-          H1
-        </button>
-
-        <button
-          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          className={`px-2 py-1 rounded transition-colors font-bold text-sm ${
-            editor.isActive('heading', { level: 2 }) ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-          }`}
-          title="Heading 2"
-        >
-          H2
-        </button>
-
-        <button
-          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-          className={`px-2 py-1 rounded transition-colors font-bold text-sm ${
-            editor.isActive('heading', { level: 3 }) ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-          }`}
-          title="Heading 3"
-        >
-          H3
-        </button>
-
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
-
-        <button
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-          className={`p-2 rounded transition-colors ${
-            editor.isActive('bulletList') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-          }`}
-          title="Bullet List"
-        >
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M7,5H21V7H7V5M7,13V11H21V13H7M4,4.5A1.5,1.5 0 0,1 5.5,6A1.5,1.5 0 0,1 4,7.5A1.5,1.5 0 0,1 2.5,6A1.5,1.5 0 0,1 4,4.5M4,10.5A1.5,1.5 0 0,1 5.5,12A1.5,1.5 0 0,1 4,13.5A1.5,1.5 0 0,1 2.5,12A1.5,1.5 0 0,1 4,10.5M7,19V17H21V19H7M4,16.5A1.5,1.5 0 0,1 5.5,18A1.5,1.5 0 0,1 4,19.5A1.5,1.5 0 0,1 2.5,18A1.5,1.5 0 0,1 4,16.5Z" />
-          </svg>
-        </button>
-
-        <button
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          className={`p-2 rounded transition-colors ${
-            editor.isActive('orderedList') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-          }`}
-          title="Numbered List"
-        >
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M7,13V11H21V13H7M7,19V17H21V19H7M7,7V5H21V7H7M3,8V5H2V4H4V8H3M2,17V16H5V20H2V19H4V18.5H3V17.5H4V17H2M4.25,10A0.75,0.75 0 0,1 5,10.75C5,10.95 4.92,11.14 4.79,11.27L3.12,13H5V14H2V13.08L4,11H2V10H4.25Z" />
-          </svg>
-        </button>
-
-        <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
-
-        <button
-          onClick={() => editor.chain().focus().toggleCode().run()}
-          className={`p-2 rounded transition-colors ${
-            editor.isActive('code') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-          }`}
-          title="Inline Code"
-        >
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M8.5,18L3.5,13L8.5,8L9.91,9.41L6.33,13L9.91,16.59L8.5,18M15.5,18L14.09,16.59L17.67,13L14.09,9.41L15.5,8L20.5,13L15.5,18Z" />
-          </svg>
-        </button>
-
-        <button
-          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-          className={`p-2 rounded transition-colors ${
-            editor.isActive('codeBlock') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-          }`}
-          title="Code Block"
-        >
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M15,4V6H18V18H15V20H20V4M4,4V20H9V18H6V6H9V4H4Z" />
-          </svg>
-        </button>
+              {/* Focus Mode Toggle */}
+              {onToggleFocusMode && (
+                <button
+                  onClick={onToggleFocusMode}
+                  className={`p-1.5 rounded-lg transition-colors ${
+                    isFocusMode
+                      ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                  title={isFocusMode ? "Exit Focus Mode (Esc)" : "Focus Mode"}
+                >
+                  {isFocusMode ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                    </svg>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
       
-      <div className="flex-1 overflow-auto">
-        <EditorContent editor={editor} />
+      <div className="flex-1 overflow-y-auto">
+        <div className={`min-h-full ${isFocusMode ? 'max-w-3xl mx-auto w-full' : ''}`}>
+          {isPreviewMode ? (
+            <div 
+              className={`prose prose-slate dark:prose-invert p-8 ${isFocusMode ? '' : 'max-w-none'}`}
+              style={{ fontSize: `${fontSize}px` }}
+              dangerouslySetInnerHTML={{ 
+                __html: marked.parse(localContent || '', { async: false }) as string 
+              }}
+            />
+          ) : (
+            <div className="min-h-full p-8">
+              <FloatingToolbar onFormat={handleFormat} textareaRef={textareaRef} />
+              <textarea
+                ref={textareaRef}
+                value={localContent}
+                onChange={(e) => {
+                  handleContentChange(e.target.value);
+                  // Auto-resize textarea to fit content
+                  e.target.style.height = 'auto';
+                  e.target.style.height = e.target.scrollHeight + 'px';
+                }}
+                className="w-full resize-none border-none outline-none focus:ring-0 bg-transparent text-gray-900 dark:text-gray-100 font-mono overflow-hidden"
+                style={{ fontSize: `${fontSize}px`, lineHeight: '1.6', minHeight: '100%' }}
+                placeholder="Start writing in markdown..."
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
