@@ -44,7 +44,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
     content: '',
     editorProps: {
       attributes: {
-        class: 'prose prose-slate max-w-none focus:outline-none p-6',
+        class: 'prose prose-slate max-w-none focus:outline-none p-8',
         style: `font-size: ${fontSize}px`,
       },
     },

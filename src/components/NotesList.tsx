@@ -80,8 +80,10 @@ export function NotesList({
   };
 
   const getPreview = (content: string) => {
-    const lines = content.split('\n').filter(l => l.trim());
-    return lines.slice(1, 3).join(' ').substring(0, 100);
+    // grab first 100 characters of note's content, remove markdown syntax from the preview
+    const previewContent = content.substring(0, 100);
+    const cleanedPreview = previewContent.replace(/[#*`]/g, '');
+    return cleanedPreview;
   };
 
   return (
