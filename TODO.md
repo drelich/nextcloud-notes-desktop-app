@@ -26,6 +26,41 @@
 - Clear local storage on explicit save or discard
 - Add visual indicator (dot/asterisk) on notes with local changes
 
+### PDF Export Styling
+**Current Issue:** With custom Google Fonts in place, PDF export produces broken layout and styling. The jsPDF html() method doesn't properly handle web fonts and complex CSS.
+
+**Needs Investigation:**
+- jsPDF may not support external web fonts properly
+- May need to embed fonts or use fallback system fonts for PDF
+- Consider alternative approaches: html2canvas, puppeteer, or server-side PDF generation
+- Ensure proper markdown rendering with headings, lists, code blocks, etc.
+- Maintain consistent styling between preview and PDF output
+- Consider bundling Google Fonts locally for offline support and better PDF rendering
+
+### Offline Mode
+**Current Issue:** App fails when internet connection is unavailable. No local caching, no change queuing, no sync on reconnect.
+
+**Required Features:**
+- Local-first storage of all notes (IndexedDB or localStorage)
+- Work offline seamlessly - create, edit, delete notes
+- Queue changes when offline for later sync
+- Detect connection restore and push queued changes
+- Conflict resolution when note changed both locally and on server
+- Visual indicator showing online/offline status
+- Show which notes have pending sync
+
+**Technical Approach:**
+- Cache all notes locally on successful fetch
+- Intercept all API calls - if offline, work with local cache
+- Maintain a sync queue: { noteId, action, timestamp, data }
+- Use navigator.onLine and 'online'/'offline' events for detection
+- On reconnect: process queue in order, handle conflicts
+- Conflict strategy: last-write-wins or prompt user
+
+**Synergy with Other Features:**
+- Pairs well with "Unsaved Note Switching" (both need local storage)
+- Bundled fonts ensure app works fully offline
+
 ---
 
 ## Medium Priority
@@ -36,7 +71,6 @@
 - Add tags/labels system as alternative to categories
 - Export multiple notes at once
 - Import notes from other formats (Markdown files, etc.)
-- Offline mode with queue for syncing when connection returns
 
 ---
 
