@@ -1,5 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 
+const EDITOR_FONTS = [
+  { name: 'Source Code Pro', value: 'Source Code Pro' },
+  { name: 'Roboto Mono', value: 'Roboto Mono' },
+  { name: 'Inconsolata', value: 'Inconsolata' },
+  { name: 'System Mono', value: 'ui-monospace, monospace' },
+];
+
+const PREVIEW_FONTS = [
+  { name: 'Merriweather', value: 'Merriweather' },
+  { name: 'Crimson Pro', value: 'Crimson Pro' },
+  { name: 'Roboto Serif', value: 'Roboto Serif' },
+  { name: 'Average', value: 'Average' },
+  { name: 'System Serif', value: 'ui-serif, Georgia, serif' },
+];
+
 interface CategoriesSidebarProps {
   categories: string[];
   selectedCategory: string;
@@ -11,6 +26,14 @@ interface CategoriesSidebarProps {
   onLogout: () => void;
   theme: 'light' | 'dark' | 'system';
   onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
+  editorFont: string;
+  onEditorFontChange: (font: string) => void;
+  editorFontSize: number;
+  onEditorFontSizeChange: (size: number) => void;
+  previewFont: string;
+  onPreviewFontChange: (font: string) => void;
+  previewFontSize: number;
+  onPreviewFontSizeChange: (size: number) => void;
 }
 
 export function CategoriesSidebar({ 
@@ -24,6 +47,14 @@ export function CategoriesSidebar({
   onLogout,
   theme,
   onThemeChange,
+  editorFont,
+  onEditorFontChange,
+  editorFontSize,
+  onEditorFontSizeChange,
+  previewFont,
+  onPreviewFontChange,
+  previewFontSize,
+  onPreviewFontSizeChange,
 }: CategoriesSidebarProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -174,7 +205,7 @@ export function CategoriesSidebar({
         </div>
         
         {/* Theme Toggle */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-3">
           <span className="text-xs text-gray-500 dark:text-gray-400">Theme</span>
           <div className="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
             <button
@@ -216,6 +247,78 @@ export function CategoriesSidebar({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
             </button>
+          </div>
+        </div>
+
+        {/* Font Settings */}
+        <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-3">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Fonts</span>
+          
+          {/* Editor Font */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Editor</span>
+            </div>
+            <div className="flex gap-2">
+              <select
+                value={editorFont}
+                onChange={(e) => onEditorFontChange(e.target.value)}
+                className="flex-1 min-w-0 text-sm px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
+                style={{ fontFamily: editorFont }}
+              >
+                {EDITOR_FONTS.map((font) => (
+                  <option key={font.value} value={font.value} style={{ fontFamily: font.value }}>
+                    {font.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={editorFontSize}
+                onChange={(e) => onEditorFontSizeChange(parseInt(e.target.value, 10))}
+                className="w-16 flex-shrink-0 text-sm px-2 py-1.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer text-center"
+              >
+                {[12, 13, 14, 15, 16, 17, 18, 20, 22, 24].map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Preview Font */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Preview</span>
+            </div>
+            <div className="flex gap-2">
+              <select
+                value={previewFont}
+                onChange={(e) => onPreviewFontChange(e.target.value)}
+                className="flex-1 min-w-0 text-sm px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
+                style={{ fontFamily: previewFont }}
+              >
+                {PREVIEW_FONTS.map((font) => (
+                  <option key={font.value} value={font.value} style={{ fontFamily: font.value }}>
+                    {font.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={previewFontSize}
+                onChange={(e) => onPreviewFontSizeChange(parseInt(e.target.value, 10))}
+                className="w-16 flex-shrink-0 text-sm px-2 py-1.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer text-center"
+              >
+                {[12, 13, 14, 15, 16, 17, 18, 20, 22, 24].map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>

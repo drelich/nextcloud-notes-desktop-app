@@ -13,10 +13,14 @@ interface NoteEditorProps {
   categories: string[];
   isFocusMode?: boolean;
   onToggleFocusMode?: () => void;
+  editorFont?: string;
+  editorFontSize?: number;
+  previewFont?: string;
+  previewFontSize?: number;
 }
 
 
-export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges, categories, isFocusMode, onToggleFocusMode }: NoteEditorProps) {
+export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges, categories, isFocusMode, onToggleFocusMode, editorFont = 'Source Code Pro', editorFontSize = 14, previewFont = 'Merriweather', previewFontSize = 16 }: NoteEditorProps) {
   const [localTitle, setLocalTitle] = useState('');
   const [localContent, setLocalContent] = useState('');
   const [localCategory, setLocalCategory] = useState('');
@@ -45,13 +49,18 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges, cat
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isFocusMode, onToggleFocusMode]);
 
-  // Auto-resize textarea when content changes
+  // Auto-resize textarea when content changes, switching from preview to edit, or font size changes
   useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    if (textareaRef.current && !isPreviewMode) {
+      // Use setTimeout to ensure DOM has updated
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+          textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+        }
+      }, 0);
     }
-  }, [localContent]);
+  }, [localContent, isPreviewMode, editorFontSize]);
 
   useEffect(() => {
     const loadNewNote = () => {
@@ -136,7 +145,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges, cat
 
     try {
       const container = document.createElement('div');
-      container.style.fontFamily = 'Arial, sans-serif';
+      container.style.fontFamily = `"${previewFont}", Georgia, serif`;
       container.style.fontSize = '12px';
       container.style.lineHeight = '1.6';
       container.style.color = '#000000';
@@ -149,6 +158,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges, cat
       titleElement.style.fontWeight = 'bold';
       titleElement.style.color = '#000000';
       titleElement.style.textAlign = 'center';
+      titleElement.style.fontFamily = `"${previewFont}", Georgia, serif`;
       container.appendChild(titleElement);
       
       const contentElement = document.createElement('div');
@@ -158,6 +168,15 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges, cat
       contentElement.style.lineHeight = '1.6';
       contentElement.style.color = '#000000';
       container.appendChild(contentElement);
+      
+      // Apply monospace font to code elements
+      const style = document.createElement('style');
+      style.textContent = `
+        code, pre { font-family: "Source Code Pro", ui-monospace, monospace !important; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        code { background: #f0f0f0; padding: 2px 4px; border-radius: 2px; }
+      `;
+      container.appendChild(style);
 
       // Create PDF using jsPDF's html() method (like dompdf)
       const pdf = new jsPDF({
@@ -561,8 +580,8 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges, cat
         <div className={`min-h-full ${isFocusMode ? 'max-w-3xl mx-auto w-full' : ''}`}>
           {isPreviewMode ? (
             <div 
-              className={`prose prose-slate dark:prose-invert p-8 ${isFocusMode ? '' : 'max-w-none'}`}
-              style={{ fontSize: `${fontSize}px` }}
+              className={`prose prose-slate dark:prose-invert p-8 ${isFocusMode ? '' : 'max-w-none'} [&_code]:font-mono [&_pre]:font-mono`}
+              style={{ fontSize: `${previewFontSize}px`, fontFamily: previewFont }}
               dangerouslySetInnerHTML={{ 
                 __html: marked.parse(localContent || '', { async: false }) as string 
               }}
@@ -579,8 +598,8 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges, cat
                   e.target.style.height = 'auto';
                   e.target.style.height = e.target.scrollHeight + 'px';
                 }}
-                className="w-full resize-none border-none outline-none focus:ring-0 bg-transparent text-gray-900 dark:text-gray-100 font-mono overflow-hidden"
-                style={{ fontSize: `${fontSize}px`, lineHeight: '1.6', minHeight: '100%' }}
+                className="w-full resize-none border-none outline-none focus:ring-0 bg-transparent text-gray-900 dark:text-gray-100 overflow-hidden"
+                style={{ fontSize: `${editorFontSize}px`, lineHeight: '1.6', minHeight: '100%', fontFamily: editorFont }}
                 placeholder="Start writing in markdown..."
               />
             </div>

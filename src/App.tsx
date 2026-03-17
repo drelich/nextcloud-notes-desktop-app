@@ -22,15 +22,35 @@ function App() {
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>('light');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [editorFont, setEditorFont] = useState('Source Code Pro');
+  const [editorFontSize, setEditorFontSize] = useState(14);
+  const [previewFont, setPreviewFont] = useState('Merriweather');
+  const [previewFontSize, setPreviewFontSize] = useState(16);
 
   useEffect(() => {
     const savedServer = localStorage.getItem('serverURL');
     const savedUsername = localStorage.getItem('username');
     const savedPassword = localStorage.getItem('password');
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | 'system' | null;
+    const savedEditorFont = localStorage.getItem('editorFont');
+    const savedPreviewFont = localStorage.getItem('previewFont');
 
     if (savedTheme) {
       setTheme(savedTheme);
+    }
+    if (savedEditorFont) {
+      setEditorFont(savedEditorFont);
+    }
+    if (savedPreviewFont) {
+      setPreviewFont(savedPreviewFont);
+    }
+    const savedEditorFontSize = localStorage.getItem('editorFontSize');
+    const savedPreviewFontSize = localStorage.getItem('previewFontSize');
+    if (savedEditorFontSize) {
+      setEditorFontSize(parseInt(savedEditorFontSize, 10));
+    }
+    if (savedPreviewFontSize) {
+      setPreviewFontSize(parseInt(savedPreviewFontSize, 10));
     }
 
     if (savedServer && savedUsername && savedPassword) {
@@ -115,6 +135,26 @@ function App() {
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme);
     localStorage.setItem('theme', newTheme);
+  };
+
+  const handleEditorFontChange = (font: string) => {
+    setEditorFont(font);
+    localStorage.setItem('editorFont', font);
+  };
+
+  const handlePreviewFontChange = (font: string) => {
+    setPreviewFont(font);
+    localStorage.setItem('previewFont', font);
+  };
+
+  const handleEditorFontSizeChange = (size: number) => {
+    setEditorFontSize(size);
+    localStorage.setItem('editorFontSize', size.toString());
+  };
+
+  const handlePreviewFontSizeChange = (size: number) => {
+    setPreviewFontSize(size);
+    localStorage.setItem('previewFontSize', size.toString());
   };
 
   const handleCreateNote = async () => {
@@ -207,6 +247,14 @@ function App() {
             onLogout={handleLogout}
             theme={theme}
             onThemeChange={handleThemeChange}
+            editorFont={editorFont}
+            onEditorFontChange={handleEditorFontChange}
+            editorFontSize={editorFontSize}
+            onEditorFontSizeChange={handleEditorFontSizeChange}
+            previewFont={previewFont}
+            onPreviewFontChange={handlePreviewFontChange}
+            previewFontSize={previewFontSize}
+            onPreviewFontSizeChange={handlePreviewFontSizeChange}
           />
           <NotesList
             notes={filteredNotes}
@@ -231,6 +279,10 @@ function App() {
         categories={categories}
         isFocusMode={isFocusMode}
         onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
+        editorFont={editorFont}
+        editorFontSize={editorFontSize}
+        previewFont={previewFont}
+        previewFontSize={previewFontSize}
       />
     </div>
   );
