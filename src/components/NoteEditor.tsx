@@ -27,6 +27,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [titleManuallyEdited, setTitleManuallyEdited] = useState(false);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
   const previousNoteIdRef = useRef<number | null>(null);
 
   // Notify parent component when unsaved changes state changes
@@ -141,10 +142,15 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
   const handleExportPDF = async () => {
     if (!note || !editor) return;
 
+    setIsExportingPDF(true);
+
     try {
       // Get the editor content element
       const editorElement = document.querySelector('.ProseMirror');
-      if (!editorElement) return;
+      if (!editorElement) {
+        setIsExportingPDF(false);
+        return;
+      }
 
       // Create a temporary container with better styling for PDF
       const container = document.createElement('div');
@@ -167,6 +173,7 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
       const contentClone = editorElement.cloneNode(true) as HTMLElement;
       contentClone.style.fontSize = '12px';
       contentClone.style.lineHeight = '1.6';
+      contentClone.style.color = '#000000';
       container.appendChild(contentClone);
       
       document.body.appendChild(container);
@@ -181,25 +188,46 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
       // Remove temporary container
       document.body.removeChild(container);
 
-      // Create PDF
-      const imgData = canvas.toDataURL('image/png');
+      // Create PDF with multi-page support
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
       });
 
-      const imgWidth = 210; // A4 width in mm
+      const pageWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
+      const imgWidth = pageWidth;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      // Add first page
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      // Add additional pages if needed
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
       
       // Save the PDF
       const fileName = `${localTitle || 'note'}.pdf`;
       pdf.save(fileName);
+      
+      // Show success message
+      setTimeout(() => {
+        alert(`PDF exported successfully!\n\nFile: ${fileName}\nLocation: Downloads folder`);
+        setIsExportingPDF(false);
+      }, 500);
     } catch (error) {
       console.error('PDF export failed:', error);
       alert('Failed to export PDF. Please try again.');
+      setIsExportingPDF(false);
     }
   };
 
@@ -285,12 +313,26 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
           
           <button
             onClick={handleExportPDF}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-700 dark:text-gray-300"
-            title="Export as PDF"
+            disabled={isExportingPDF}
+            className={`p-2 rounded-lg transition-colors ${
+              isExportingPDF
+                ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 cursor-wait'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+            }`}
+            title={isExportingPDF ? "Generating PDF..." : "Export as PDF"}
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
+            {isExportingPDF ? (
+              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/>
+                <path d="M14 2v6h6"/>
+                <path fill="white" d="M8 13h8v1H8v-1zm0 2h8v1H8v-1zm0 2h5v1H8v-1z"/>
+              </svg>
+            )}
           </button>
 
           <button
