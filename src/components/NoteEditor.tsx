@@ -153,28 +153,8 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
         return;
       }
 
-      // Create PDF
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      });
-
-      const pageWidth = 210; // A4 width in mm
-      const pageHeight = 297; // A4 height in mm
-      const margin = 20; // 20mm margins on all sides
-      const contentWidth = pageWidth - (2 * margin); // 170mm
-      const contentHeight = pageHeight - (2 * margin); // 257mm
-
-      // Create a temporary container with proper page dimensions
+      // Create a container with title and content
       const container = document.createElement('div');
-      container.style.width = `${contentWidth}mm`;
-      container.style.minHeight = `${contentHeight}mm`;
-      container.style.padding = '0';
-      container.style.backgroundColor = 'white';
-      container.style.position = 'absolute';
-      container.style.left = '-9999px';
-      container.style.top = '0';
       container.style.fontFamily = 'Arial, sans-serif';
       container.style.fontSize = '12px';
       container.style.lineHeight = '1.6';
@@ -196,77 +176,40 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
       contentClone.style.lineHeight = '1.6';
       contentClone.style.color = '#000000';
       container.appendChild(contentClone);
-      
-      document.body.appendChild(container);
 
-      // Get the total height of content
-      const totalHeight = container.scrollHeight;
-      const pixelsPerMm = container.offsetWidth / contentWidth;
-      const contentHeightPx = contentHeight * pixelsPerMm;
+      // Create PDF using jsPDF's html() method (like dompdf)
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
 
-      // Calculate number of pages needed
-      const numPages = Math.ceil(totalHeight / contentHeightPx);
-
-      // Render each page separately
-      for (let pageNum = 0; pageNum < numPages; pageNum++) {
-        // Create a wrapper for this page's content
-        const pageWrapper = document.createElement('div');
-        pageWrapper.style.width = `${contentWidth}mm`;
-        pageWrapper.style.height = `${contentHeight}mm`;
-        pageWrapper.style.overflow = 'hidden';
-        pageWrapper.style.position = 'absolute';
-        pageWrapper.style.left = '-9999px';
-        pageWrapper.style.top = '0';
-        pageWrapper.style.backgroundColor = 'white';
-
-        // Clone the container and position it to show only this page's content
-        const pageContent = container.cloneNode(true) as HTMLElement;
-        pageContent.style.position = 'relative';
-        pageContent.style.top = `-${pageNum * contentHeightPx}px`;
-        pageWrapper.appendChild(pageContent);
-        
-        document.body.appendChild(pageWrapper);
-
-        // Render this page to canvas
-        const canvas = await html2canvas(pageWrapper, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-          width: pageWrapper.offsetWidth,
-          height: pageWrapper.offsetHeight,
-        });
-
-        // Remove the page wrapper
-        document.body.removeChild(pageWrapper);
-
-        // Add page to PDF (add new page if not first)
-        if (pageNum > 0) {
-          pdf.addPage();
-        }
-
-        const imgData = canvas.toDataURL('image/png');
-        pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, contentHeight);
-      }
-
-      // Remove the original container
-      document.body.removeChild(container);
-      
-      // Save the PDF
-      const fileName = `${localTitle || 'note'}.pdf`;
-      pdf.save(fileName);
-      
-      // Show success message using Tauri dialog
-      setTimeout(async () => {
-        try {
-          await message(`PDF exported successfully!\n\nFile: ${fileName}\nLocation: Downloads folder`, {
-            title: 'Export Complete',
-            kind: 'info',
-          });
-        } catch (err) {
-          console.log('Dialog shown successfully or not available');
-        }
-        setIsExportingPDF(false);
-      }, 500);
+      // Use jsPDF's html() method which handles pagination automatically
+      await pdf.html(container, {
+        callback: async (doc) => {
+          // Save the PDF
+          const fileName = `${localTitle || 'note'}.pdf`;
+          doc.save(fileName);
+          
+          // Show success message using Tauri dialog
+          setTimeout(async () => {
+            try {
+              await message(`PDF exported successfully!\n\nFile: ${fileName}\nLocation: Downloads folder`, {
+                title: 'Export Complete',
+                kind: 'info',
+              });
+            } catch (err) {
+              console.log('Dialog shown successfully or not available');
+            }
+            setIsExportingPDF(false);
+          }, 500);
+        },
+        x: 20, // 20mm left margin
+        y: 20, // 20mm top margin
+        width: 170, // 170mm content width (210 - 40)
+        windowWidth: 800, // Rendering width in pixels
+        margin: [20, 20, 20, 20], // top, right, bottom, left margins in mm
+      });
     } catch (error) {
       console.error('PDF export failed:', error);
       try {
