@@ -53,26 +53,37 @@ export function NoteEditor({ note, onUpdateNote, fontSize }: NoteEditorProps) {
   });
 
   useEffect(() => {
+    const loadNewNote = () => {
+      if (note && editor) {
+        setLocalTitle(note.title);
+        setLocalFavorite(note.favorite);
+        setHasUnsavedChanges(false);
+        
+        // Only reset titleManuallyEdited when switching to a different note
+        // Check if the current title matches the first line of content
+        const firstLine = note.content.split('\n')[0].replace(/^#+\s*/, '').trim();
+        const titleMatchesFirstLine = note.title === firstLine || note.title === firstLine.substring(0, 50);
+        setTitleManuallyEdited(!titleMatchesFirstLine);
+        
+        previousNoteIdRef.current = note.id;
+        
+        // Convert markdown to HTML using marked library
+        const html = marked.parse(note.content || '', { async: false }) as string;
+        editor.commands.setContent(html);
+      }
+    };
+
+    // If switching notes, save the previous note first
     if (previousNoteIdRef.current !== null && previousNoteIdRef.current !== note?.id) {
-      handleSave();
-    }
-    
-    if (note && editor) {
-      setLocalTitle(note.title);
-      setLocalFavorite(note.favorite);
-      setHasUnsavedChanges(false);
-      
-      // Only reset titleManuallyEdited when switching to a different note
-      // Check if the current title matches the first line of content
-      const firstLine = note.content.split('\n')[0].replace(/^#+\s*/, '').trim();
-      const titleMatchesFirstLine = note.title === firstLine || note.title === firstLine.substring(0, 50);
-      setTitleManuallyEdited(!titleMatchesFirstLine);
-      
-      previousNoteIdRef.current = note.id;
-      
-      // Convert markdown to HTML using marked library
-      const html = marked.parse(note.content || '', { async: false }) as string;
-      editor.commands.setContent(html);
+      // Save if there are unsaved changes
+      if (hasUnsavedChanges && editor) {
+        handleSave();
+      }
+      // Load new note after a brief delay to ensure save completes
+      setTimeout(loadNewNote, 100);
+    } else {
+      // First load or same note, load immediately
+      loadNewNote();
     }
   }, [note?.id, editor]);
 
