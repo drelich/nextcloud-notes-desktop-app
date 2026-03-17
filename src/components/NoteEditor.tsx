@@ -5,6 +5,8 @@ import Underline from '@tiptap/extension-underline';
 import Strike from '@tiptap/extension-strike';
 import TurndownService from 'turndown';
 import { marked } from 'marked';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { Note } from '../types';
 
 interface NoteEditorProps {
@@ -136,6 +138,71 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
     editor.commands.setContent(html);
   };
 
+  const handleExportPDF = async () => {
+    if (!note || !editor) return;
+
+    try {
+      // Get the editor content element
+      const editorElement = document.querySelector('.ProseMirror');
+      if (!editorElement) return;
+
+      // Create a temporary container with better styling for PDF
+      const container = document.createElement('div');
+      container.style.width = '210mm'; // A4 width
+      container.style.padding = '20mm';
+      container.style.backgroundColor = 'white';
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.style.fontFamily = 'Arial, sans-serif';
+      
+      // Add title
+      const titleElement = document.createElement('h1');
+      titleElement.textContent = localTitle || 'Untitled';
+      titleElement.style.marginBottom = '20px';
+      titleElement.style.fontSize = '24px';
+      titleElement.style.fontWeight = 'bold';
+      container.appendChild(titleElement);
+      
+      // Clone and add content
+      const contentClone = editorElement.cloneNode(true) as HTMLElement;
+      contentClone.style.fontSize = '12px';
+      contentClone.style.lineHeight = '1.6';
+      container.appendChild(contentClone);
+      
+      document.body.appendChild(container);
+
+      // Convert to canvas
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
+
+      // Remove temporary container
+      document.body.removeChild(container);
+
+      // Create PDF
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const imgWidth = 210; // A4 width in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      
+      // Save the PDF
+      const fileName = `${localTitle || 'note'}.pdf`;
+      pdf.save(fileName);
+    } catch (error) {
+      console.error('PDF export failed:', error);
+      alert('Failed to export PDF. Please try again.');
+    }
+  };
+
   const handleFavoriteToggle = () => {
     setLocalFavorite(!localFavorite);
     if (note) {
@@ -216,6 +283,16 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
             </svg>
           </button>
           
+          <button
+            onClick={handleExportPDF}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-700 dark:text-gray-300"
+            title="Export as PDF"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </button>
+
           <button
             onClick={handleFavoriteToggle}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
