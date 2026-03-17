@@ -204,11 +204,10 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
             setIsExportingPDF(false);
           }, 500);
         },
-        x: 20, // 20mm left margin
-        y: 20, // 20mm top margin
-        width: 170, // 170mm content width (210 - 40)
-        windowWidth: 800, // Rendering width in pixels
         margin: [20, 20, 20, 20], // top, right, bottom, left margins in mm
+        autoPaging: 'text', // Enable automatic page breaks
+        width: 170, // Content width in mm (A4 width 210mm - 40mm margins)
+        windowWidth: 650, // Rendering width in pixels (matches content width ratio)
       });
     } catch (error) {
       console.error('PDF export failed:', error);
