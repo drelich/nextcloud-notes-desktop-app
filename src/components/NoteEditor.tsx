@@ -120,6 +120,22 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
     setHasUnsavedChanges(true);
   };
 
+  const handleDiscard = () => {
+    if (!note || !editor) return;
+    
+    // Reload original note content
+    setLocalTitle(note.title);
+    setLocalFavorite(note.favorite);
+    setHasUnsavedChanges(false);
+    
+    const firstLine = note.content.split('\n')[0].replace(/^#+\s*/, '').trim();
+    const titleMatchesFirstLine = note.title === firstLine || note.title === firstLine.substring(0, 50);
+    setTitleManuallyEdited(!titleMatchesFirstLine);
+    
+    const html = marked.parse(note.content || '', { async: false }) as string;
+    editor.commands.setContent(html);
+  };
+
   const handleFavoriteToggle = () => {
     setLocalFavorite(!localFavorite);
     if (note) {
@@ -182,6 +198,21 @@ export function NoteEditor({ note, onUpdateNote, fontSize, onUnsavedChanges }: N
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </button>
+
+          <button
+            onClick={handleDiscard}
+            disabled={!hasUnsavedChanges || isSaving}
+            className={`p-2 rounded-lg transition-colors ${
+              hasUnsavedChanges && !isSaving
+                ? 'bg-gray-500 dark:bg-gray-600 text-white hover:bg-gray-600 dark:hover:bg-gray-700'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+            }`}
+            title="Discard Changes"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
           
