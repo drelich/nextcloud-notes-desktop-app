@@ -1,3 +1,5 @@
+![nextcloud-notes-tauri.png](src/assets/nextcloud-notes-tauri.png)
+
 # Tauri + React + Typescript
 
 # Nextcloud Notes - Cross-Platform Desktop App
