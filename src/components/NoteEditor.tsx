@@ -5,6 +5,7 @@ import { message } from '@tauri-apps/plugin-dialog';
 import { Note } from '../types';
 import { NextcloudAPI } from '../api/nextcloud';
 import { FloatingToolbar } from './FloatingToolbar';
+import { InsertToolbar } from './InsertToolbar';
 
 interface NoteEditorProps {
   note: Note | null;
@@ -35,8 +36,10 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [processedContent, setProcessedContent] = useState('');
   const [isLoadingImages, setIsLoadingImages] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const previousNoteIdRef = useRef<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     onUnsavedChanges?.(hasUnsavedChanges);
@@ -295,6 +298,80 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
     setHasUnsavedChanges(true);
   };
 
+  const handleAttachmentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !note || !api) return;
+
+    setIsUploading(true);
+    try {
+      const relativePath = await api.uploadAttachment(note.id, file, note.category);
+      
+      // Determine if it's an image or other file
+      const isImage = file.type.startsWith('image/');
+      const markdownLink = isImage 
+        ? `![${file.name}](${relativePath})`
+        : `[${file.name}](${relativePath})`;
+      
+      // Insert at cursor position or end of content
+      const textarea = textareaRef.current;
+      if (textarea) {
+        const cursorPos = textarea.selectionStart;
+        const newContent = localContent.slice(0, cursorPos) + markdownLink + localContent.slice(cursorPos);
+        setLocalContent(newContent);
+        setHasUnsavedChanges(true);
+        
+        // Move cursor after inserted text
+        setTimeout(() => {
+          textarea.focus();
+          const newPos = cursorPos + markdownLink.length;
+          textarea.setSelectionRange(newPos, newPos);
+        }, 0);
+      } else {
+        // Append to end
+        setLocalContent(localContent + '\n' + markdownLink);
+        setHasUnsavedChanges(true);
+      }
+      
+      await message(`Attachment uploaded successfully!`, {
+        title: 'Upload Complete',
+        kind: 'info',
+      });
+    } catch (error) {
+      console.error('Upload failed:', error);
+      await message(`Failed to upload attachment: ${error}`, {
+        title: 'Upload Failed',
+        kind: 'error',
+      });
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleInsertLink = (text: string, url: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    
+    const cursorPos = textarea.selectionStart;
+    const markdownLink = `[${text}](${url})`;
+    const newContent = localContent.slice(0, cursorPos) + markdownLink + localContent.slice(cursorPos);
+    setLocalContent(newContent);
+    setHasUnsavedChanges(true);
+    
+    setTimeout(() => {
+      textarea.focus();
+      const newPos = cursorPos + markdownLink.length;
+      textarea.setSelectionRange(newPos, newPos);
+    }, 0);
+  };
+
+  const handleInsertFile = () => {
+    fileInputRef.current?.click();
+  };
+
   const handleFormat = (format: 'bold' | 'italic' | 'strikethrough' | 'code' | 'codeblock' | 'quote' | 'ul' | 'ol' | 'link' | 'h1' | 'h2' | 'h3') => {
     if (!textareaRef.current) return;
     
@@ -507,6 +584,42 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
               </svg>
             </div>
 
+            {/* Attachment Upload */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleAttachmentUpload}
+              className="hidden"
+              accept="image/*,.pdf,.doc,.docx,.txt,.md"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading || isPreviewMode}
+              className={`px-3 py-1.5 rounded-full transition-colors flex items-center gap-1.5 text-sm ${
+                isUploading || isPreviewMode
+                  ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+              title={isPreviewMode ? "Switch to Edit mode to upload" : "Upload Image/Attachment"}
+            >
+              {isUploading ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Uploading...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span>Attach</span>
+                </>
+              )}
+            </button>
+
             {/* Preview Toggle */}
             <button
               onClick={() => setIsPreviewMode(!isPreviewMode)}
@@ -653,6 +766,12 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
           ) : (
             <div className="min-h-full p-8">
               <FloatingToolbar onFormat={handleFormat} textareaRef={textareaRef} />
+              <InsertToolbar 
+                textareaRef={textareaRef} 
+                onInsertLink={handleInsertLink} 
+                onInsertFile={handleInsertFile}
+                isUploading={isUploading}
+              />
               <textarea
                 ref={textareaRef}
                 value={localContent}
