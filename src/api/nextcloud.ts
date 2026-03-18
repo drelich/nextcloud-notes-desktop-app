@@ -77,7 +77,7 @@ export class NextcloudAPI {
     webdavPath += `/${path}`;
     
     const url = `${this.serverURL}${webdavPath}`;
-    console.log('Fetching attachment via WebDAV:', url);
+    console.log(`[Note ${_noteId}] Fetching attachment via WebDAV:`, url);
     
     const response = await tauriFetch(url, {
       headers: {
