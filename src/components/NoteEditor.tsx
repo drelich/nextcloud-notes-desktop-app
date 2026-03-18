@@ -3,6 +3,7 @@ import { marked } from 'marked';
 import jsPDF from 'jspdf';
 import { message } from '@tauri-apps/plugin-dialog';
 import { Note } from '../types';
+import { NextcloudAPI } from '../api/nextcloud';
 import { FloatingToolbar } from './FloatingToolbar';
 
 interface NoteEditorProps {
@@ -16,10 +17,13 @@ interface NoteEditorProps {
   editorFontSize?: number;
   previewFont?: string;
   previewFontSize?: number;
+  api?: NextcloudAPI | null;
 }
 
+const imageCache = new Map<string, string>();
 
-export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, isFocusMode, onToggleFocusMode, editorFont = 'Source Code Pro', editorFontSize = 14, previewFont = 'Merriweather', previewFontSize = 16 }: NoteEditorProps) {
+
+export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, isFocusMode, onToggleFocusMode, editorFont = 'Source Code Pro', editorFontSize = 14, previewFont = 'Merriweather', previewFontSize = 16, api }: NoteEditorProps) {
   const [localTitle, setLocalTitle] = useState('');
   const [localContent, setLocalContent] = useState('');
   const [localCategory, setLocalCategory] = useState('');
@@ -29,6 +33,8 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
   const [titleManuallyEdited, setTitleManuallyEdited] = useState(false);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [processedContent, setProcessedContent] = useState('');
+  const [isLoadingImages, setIsLoadingImages] = useState(false);
   const previousNoteIdRef = useRef<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -60,6 +66,54 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
       }, 0);
     }
   }, [localContent, isPreviewMode, editorFontSize]);
+
+  // Process images when entering preview mode or content changes
+  useEffect(() => {
+    if (!isPreviewMode || !note || !api) {
+      setProcessedContent(localContent);
+      return;
+    }
+
+    const processImages = async () => {
+      setIsLoadingImages(true);
+      
+      // Find all image references in markdown: ![alt](path)
+      const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+      let content = localContent;
+      const matches = [...localContent.matchAll(imageRegex)];
+      
+      for (const match of matches) {
+        const [fullMatch, alt, imagePath] = match;
+        
+        // Skip external URLs (http/https)
+        if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+          continue;
+        }
+        
+        // Check cache first
+        const cacheKey = `${note.id}:${imagePath}`;
+        if (imageCache.has(cacheKey)) {
+          const dataUrl = imageCache.get(cacheKey)!;
+          content = content.replace(fullMatch, `![${alt}](${dataUrl})`);
+          continue;
+        }
+        
+        try {
+          const dataUrl = await api.fetchAttachment(note.id, imagePath, note.category);
+          imageCache.set(cacheKey, dataUrl);
+          content = content.replace(fullMatch, `![${alt}](${dataUrl})`);
+        } catch (error) {
+          console.error(`Failed to fetch attachment: ${imagePath}`, error);
+          // Keep original path, image will show as broken
+        }
+      }
+      
+      setProcessedContent(content);
+      setIsLoadingImages(false);
+    };
+
+    processImages();
+  }, [isPreviewMode, localContent, note?.id, api]);
 
   useEffect(() => {
     const loadNewNote = () => {
@@ -578,13 +632,24 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
       <div className="flex-1 overflow-y-auto">
         <div className={`min-h-full ${isFocusMode ? 'max-w-3xl mx-auto w-full' : ''}`}>
           {isPreviewMode ? (
-            <div 
-              className={`prose prose-slate dark:prose-invert p-8 ${isFocusMode ? '' : 'max-w-none'} [&_code]:font-mono [&_pre]:font-mono`}
-              style={{ fontSize: `${previewFontSize}px`, fontFamily: previewFont }}
-              dangerouslySetInnerHTML={{ 
-                __html: marked.parse(localContent || '', { async: false }) as string 
-              }}
-            />
+            <div className="relative">
+              {isLoadingImages && (
+                <div className="absolute top-4 right-4 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-3 py-1.5 rounded-full shadow-sm">
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Loading images...
+                </div>
+              )}
+              <div 
+                className={`prose prose-slate dark:prose-invert p-8 ${isFocusMode ? '' : 'max-w-none'} [&_code]:font-mono [&_pre]:font-mono [&_img]:max-w-full [&_img]:rounded-lg [&_img]:shadow-md`}
+                style={{ fontSize: `${previewFontSize}px`, fontFamily: previewFont }}
+                dangerouslySetInnerHTML={{ 
+                  __html: marked.parse(processedContent || '', { async: false }) as string 
+                }}
+              />
+            </div>
           ) : (
             <div className="min-h-full p-8">
               <FloatingToolbar onFormat={handleFormat} textareaRef={textareaRef} />

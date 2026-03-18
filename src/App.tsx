@@ -281,6 +281,7 @@ function App() {
         editorFontSize={editorFontSize}
         previewFont={previewFont}
         previewFontSize={previewFontSize}
+        api={api}
       />
     </div>
   );
