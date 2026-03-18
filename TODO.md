@@ -79,7 +79,7 @@
 ### Nice to Have
 - Note templates
 - Rich text paste handling
-- Image upload/embedding support
+- ~~Image upload/embedding support~~ ✅ (viewing attachments works, upload TBD)
 - Note linking (wiki-style)
 - Version history/undo for saved notes
 - Customizable editor themes
