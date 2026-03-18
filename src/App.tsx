@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { LoginView } from './components/LoginView';
 import { NotesList } from './components/NotesList';
 import { NoteEditor } from './components/NoteEditor';
+import { CategoriesSidebar } from './components/CategoriesSidebar';
 import { NextcloudAPI } from './api/nextcloud';
 import { Note } from './types';
 
@@ -12,12 +13,44 @@ function App() {
   const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
   const [searchText, setSearchText] = useState('');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [fontSize] = useState(14);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [manualCategories, setManualCategories] = useState<string[]>([]);
+  const [isCategoriesCollapsed, setIsCategoriesCollapsed] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(false);
+  const [username, setUsername] = useState('');
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
+  const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>('light');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [editorFont, setEditorFont] = useState('Source Code Pro');
+  const [editorFontSize, setEditorFontSize] = useState(14);
+  const [previewFont, setPreviewFont] = useState('Merriweather');
+  const [previewFontSize, setPreviewFontSize] = useState(16);
 
   useEffect(() => {
     const savedServer = localStorage.getItem('serverURL');
     const savedUsername = localStorage.getItem('username');
     const savedPassword = localStorage.getItem('password');
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | 'system' | null;
+    const savedEditorFont = localStorage.getItem('editorFont');
+    const savedPreviewFont = localStorage.getItem('previewFont');
+
+    if (savedTheme) {
+      setTheme(savedTheme);
+    }
+    if (savedEditorFont) {
+      setEditorFont(savedEditorFont);
+    }
+    if (savedPreviewFont) {
+      setPreviewFont(savedPreviewFont);
+    }
+    const savedEditorFontSize = localStorage.getItem('editorFontSize');
+    const savedPreviewFontSize = localStorage.getItem('previewFontSize');
+    if (savedEditorFontSize) {
+      setEditorFontSize(parseInt(savedEditorFontSize, 10));
+    }
+    if (savedPreviewFontSize) {
+      setPreviewFontSize(parseInt(savedPreviewFontSize, 10));
+    }
 
     if (savedServer && savedUsername && savedPassword) {
       const apiInstance = new NextcloudAPI({
@@ -26,9 +59,34 @@ function App() {
         password: savedPassword,
       });
       setApi(apiInstance);
+      setUsername(savedUsername);
       setIsLoggedIn(true);
     }
   }, []);
+
+  useEffect(() => {
+    const updateEffectiveTheme = () => {
+      if (theme === 'system') {
+        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        setEffectiveTheme(isDark ? 'dark' : 'light');
+      } else {
+        setEffectiveTheme(theme);
+      }
+    };
+
+    updateEffectiveTheme();
+
+    if (theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handler = () => updateEffectiveTheme();
+      mediaQuery.addEventListener('change', handler);
+      return () => mediaQuery.removeEventListener('change', handler);
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', effectiveTheme === 'dark');
+  }, [effectiveTheme]);
 
   useEffect(() => {
     if (api && isLoggedIn) {
@@ -58,7 +116,44 @@ function App() {
 
     const apiInstance = new NextcloudAPI({ serverURL, username, password });
     setApi(apiInstance);
+    setUsername(username);
     setIsLoggedIn(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('serverURL');
+    localStorage.removeItem('username');
+    localStorage.removeItem('password');
+    setApi(null);
+    setUsername('');
+    setNotes([]);
+    setSelectedNoteId(null);
+    setIsLoggedIn(false);
+  };
+
+  const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+  };
+
+  const handleEditorFontChange = (font: string) => {
+    setEditorFont(font);
+    localStorage.setItem('editorFont', font);
+  };
+
+  const handlePreviewFontChange = (font: string) => {
+    setPreviewFont(font);
+    localStorage.setItem('previewFont', font);
+  };
+
+  const handleEditorFontSizeChange = (size: number) => {
+    setEditorFontSize(size);
+    localStorage.setItem('editorFontSize', size.toString());
+  };
+
+  const handlePreviewFontSizeChange = (size: number) => {
+    setPreviewFontSize(size);
+    localStorage.setItem('previewFontSize', size.toString());
   };
 
   const handleCreateNote = async () => {
@@ -73,11 +168,17 @@ function App() {
         hour12: false,
       }).replace(/[/:]/g, '-').replace(', ', ' ');
       
-      const note = await api.createNote(`New Note ${timestamp}`, '', '');
+      const note = await api.createNote(`New Note ${timestamp}`, '', selectedCategory);
       setNotes([note, ...notes]);
       setSelectedNoteId(note.id);
     } catch (error) {
       console.error('Create note failed:', error);
+    }
+  };
+
+  const handleCreateCategory = (name: string) => {
+    if (!manualCategories.includes(name)) {
+      setManualCategories([...manualCategories, name]);
     }
   };
 
@@ -98,7 +199,6 @@ function App() {
 
   const handleDeleteNote = async (note: Note) => {
     if (!api) return;
-    if (!confirm(`Delete "${note.title}"?`)) return;
     
     try {
       await api.deleteNote(note.id);
@@ -111,7 +211,11 @@ function App() {
     }
   };
 
+  const categoriesFromNotes = Array.from(new Set(notes.map(n => n.category).filter(c => c)));
+  const categories = Array.from(new Set([...categoriesFromNotes, ...manualCategories])).sort();
+
   const filteredNotes = notes.filter(note => {
+    if (selectedCategory && note.category !== selectedCategory) return false;
     if (showFavoritesOnly && !note.favorite) return false;
     if (searchText) {
       const search = searchText.toLowerCase();
@@ -129,22 +233,55 @@ function App() {
 
   return (
     <div className="flex h-screen">
-      <NotesList
-        notes={filteredNotes}
-        selectedNoteId={selectedNoteId}
-        onSelectNote={setSelectedNoteId}
-        onCreateNote={handleCreateNote}
-        onDeleteNote={handleDeleteNote}
-        onSync={syncNotes}
-        searchText={searchText}
-        onSearchChange={setSearchText}
-        showFavoritesOnly={showFavoritesOnly}
-        onToggleFavorites={() => setShowFavoritesOnly(!showFavoritesOnly)}
-      />
+      {!isFocusMode && (
+        <>
+          <CategoriesSidebar
+            categories={categories}
+            selectedCategory={selectedCategory}
+            onSelectCategory={setSelectedCategory}
+            onCreateCategory={handleCreateCategory}
+            isCollapsed={isCategoriesCollapsed}
+            onToggleCollapse={() => setIsCategoriesCollapsed(!isCategoriesCollapsed)}
+            username={username}
+            onLogout={handleLogout}
+            theme={theme}
+            onThemeChange={handleThemeChange}
+            editorFont={editorFont}
+            onEditorFontChange={handleEditorFontChange}
+            editorFontSize={editorFontSize}
+            onEditorFontSizeChange={handleEditorFontSizeChange}
+            previewFont={previewFont}
+            onPreviewFontChange={handlePreviewFontChange}
+            previewFontSize={previewFontSize}
+            onPreviewFontSizeChange={handlePreviewFontSizeChange}
+          />
+          <NotesList
+            notes={filteredNotes}
+            selectedNoteId={selectedNoteId}
+            onSelectNote={setSelectedNoteId}
+            onCreateNote={handleCreateNote}
+            onDeleteNote={handleDeleteNote}
+            onSync={syncNotes}
+            searchText={searchText}
+            onSearchChange={setSearchText}
+            showFavoritesOnly={showFavoritesOnly}
+            onToggleFavorites={() => setShowFavoritesOnly(!showFavoritesOnly)}
+            hasUnsavedChanges={hasUnsavedChanges}
+          />
+        </>
+      )}
       <NoteEditor
         note={selectedNote}
         onUpdateNote={handleUpdateNote}
-        fontSize={fontSize}
+        onUnsavedChanges={setHasUnsavedChanges}
+        categories={categories}
+        isFocusMode={isFocusMode}
+        onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
+        editorFont={editorFont}
+        editorFontSize={editorFontSize}
+        previewFont={previewFont}
+        previewFontSize={previewFontSize}
+        api={api}
       />
     </div>
   );

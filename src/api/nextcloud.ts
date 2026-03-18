@@ -1,13 +1,18 @@
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { Note, APIConfig } from '../types';
 
 export class NextcloudAPI {
   private baseURL: string;
+  private serverURL: string;
   private authHeader: string;
+  private username: string;
 
   constructor(config: APIConfig) {
     const url = config.serverURL.replace(/\/$/, '');
+    this.serverURL = url;
     this.baseURL = `${url}/index.php/apps/notes/api/v1`;
     this.authHeader = 'Basic ' + btoa(`${config.username}:${config.password}`);
+    this.username = config.username;
   }
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -54,5 +59,97 @@ export class NextcloudAPI {
 
   async deleteNote(id: number): Promise<void> {
     await this.request<void>(`/notes/${id}`, { method: 'DELETE' });
+  }
+
+  async fetchAttachment(_noteId: number, path: string, noteCategory?: string): Promise<string> {
+    // Build WebDAV path: /remote.php/dav/files/{username}/Notes/{category}/.attachments.{noteId}/{filename}
+    // The path from markdown is like: .attachments.38479/Screenshot.png
+    // We need to construct the full WebDAV URL
+    
+    let webdavPath = `/remote.php/dav/files/${this.username}/Notes`;
+    
+    // Add category subfolder if present
+    if (noteCategory) {
+      webdavPath += `/${noteCategory}`;
+    }
+    
+    // Add the attachment path (already includes .attachments.{id}/filename)
+    webdavPath += `/${path}`;
+    
+    const url = `${this.serverURL}${webdavPath}`;
+    console.log('Fetching attachment via WebDAV:', url);
+    
+    const response = await tauriFetch(url, {
+      headers: {
+        'Authorization': this.authHeader,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch attachment: ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  getServerURL(): string {
+    return this.serverURL;
+  }
+
+  async uploadAttachment(noteId: number, file: File, noteCategory?: string): Promise<string> {
+    // Create .attachments.{noteId} directory path and upload file via WebDAV PUT
+    // Returns the relative path to insert into markdown
+    
+    let webdavPath = `/remote.php/dav/files/${this.username}/Notes`;
+    
+    if (noteCategory) {
+      webdavPath += `/${noteCategory}`;
+    }
+    
+    const attachmentDir = `.attachments.${noteId}`;
+    const fileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_'); // Sanitize filename
+    const fullPath = `${webdavPath}/${attachmentDir}/${fileName}`;
+    
+    const url = `${this.serverURL}${fullPath}`;
+    console.log('Uploading attachment via WebDAV:', url);
+    
+    // First, try to create the attachments directory (MKCOL)
+    // This may fail if it already exists, which is fine
+    try {
+      await tauriFetch(`${this.serverURL}${webdavPath}/${attachmentDir}`, {
+        method: 'MKCOL',
+        headers: {
+          'Authorization': this.authHeader,
+        },
+      });
+    } catch (e) {
+      // Directory might already exist, continue
+    }
+    
+    // Read file as ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
+    
+    // Upload the file via PUT
+    const response = await tauriFetch(url, {
+      method: 'PUT',
+      headers: {
+        'Authorization': this.authHeader,
+        'Content-Type': file.type || 'application/octet-stream',
+      },
+      body: arrayBuffer,
+    });
+
+    if (!response.ok && response.status !== 201 && response.status !== 204) {
+      throw new Error(`Failed to upload attachment: ${response.status}`);
+    }
+
+    // Return the relative path for markdown
+    return `${attachmentDir}/${fileName}`;
   }
 }
