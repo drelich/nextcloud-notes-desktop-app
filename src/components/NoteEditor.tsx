@@ -226,15 +226,88 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
     setTitleManuallyEdited(!titleMatchesFirstLine);
   };
 
+  const loadFontAsBase64 = async (fontPath: string): Promise<string> => {
+    const response = await fetch(fontPath);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        // Remove data URL prefix to get just the base64 string
+        resolve(base64.split(',')[1]);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
   const handleExportPDF = async () => {
     if (!note) return;
 
     setIsExportingPDF(true);
 
     try {
+      // Create PDF
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      // Load and add custom fonts based on preview font selection
+      const fontMap: { [key: string]: { regular: string; italic: string; name: string } } = {
+        'Merriweather': {
+          regular: '/fonts/Merriweather-VariableFont_opsz,wdth,wght.ttf',
+          italic: '/fonts/Merriweather-Italic-VariableFont_opsz,wdth,wght.ttf',
+          name: 'Merriweather'
+        },
+        'Crimson Pro': {
+          regular: '/fonts/CrimsonPro-VariableFont_wght.ttf',
+          italic: '/fonts/CrimsonPro-Italic-VariableFont_wght.ttf',
+          name: 'CrimsonPro'
+        },
+        'Roboto Serif': {
+          regular: '/fonts/RobotoSerif-VariableFont_GRAD,opsz,wdth,wght.ttf',
+          italic: '/fonts/RobotoSerif-Italic-VariableFont_GRAD,opsz,wdth,wght.ttf',
+          name: 'RobotoSerif'
+        },
+        'Average': {
+          regular: '/fonts/Average-Regular.ttf',
+          italic: '/fonts/Average-Regular.ttf', // No italic variant
+          name: 'Average'
+        }
+      };
+
+      const selectedFont = fontMap[previewFont];
+      if (selectedFont) {
+        try {
+          const regularBase64 = await loadFontAsBase64(selectedFont.regular);
+          pdf.addFileToVFS(`${selectedFont.name}-normal.ttf`, regularBase64);
+          pdf.addFont(`${selectedFont.name}-normal.ttf`, selectedFont.name, 'normal');
+          
+          const italicBase64 = await loadFontAsBase64(selectedFont.italic);
+          pdf.addFileToVFS(`${selectedFont.name}-italic.ttf`, italicBase64);
+          pdf.addFont(`${selectedFont.name}-italic.ttf`, selectedFont.name, 'italic');
+          
+          // Set the custom font as default
+          pdf.setFont(selectedFont.name, 'normal');
+        } catch (fontError) {
+          console.error('Failed to load custom font, using default:', fontError);
+        }
+      }
+
+      // Add Source Code Pro for code blocks
+      try {
+        const codeFont = await loadFontAsBase64('/fonts/SourceCodePro-VariableFont_wght.ttf');
+        pdf.addFileToVFS('SourceCodePro-normal.ttf', codeFont);
+        pdf.addFont('SourceCodePro-normal.ttf', 'SourceCodePro', 'normal');
+      } catch (codeFontError) {
+        console.error('Failed to load code font:', codeFontError);
+      }
+
       const container = document.createElement('div');
       container.style.fontFamily = `"${previewFont}", Georgia, serif`;
-      container.style.fontSize = '12px';
+      container.style.fontSize = `${previewFontSize}px`;
       container.style.lineHeight = '1.6';
       container.style.color = '#000000';
       
@@ -252,35 +325,30 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
       const contentElement = document.createElement('div');
       const html = marked.parse(localContent || '', { async: false }) as string;
       contentElement.innerHTML = html;
-      contentElement.style.fontSize = '12px';
+      contentElement.style.fontSize = `${previewFontSize}px`;
       contentElement.style.lineHeight = '1.6';
       contentElement.style.color = '#000000';
       container.appendChild(contentElement);
       
-      // Apply monospace font to code elements
       const style = document.createElement('style');
       style.textContent = `
-        code, pre { font-family: "Source Code Pro", ui-monospace, monospace !important; }
+        * { font-family: "${previewFont}", Georgia, serif !important; }
+        code, pre, pre * { font-family: "Source Code Pro", "Courier New", monospace !important; }
         pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto; }
         code { background: #f0f0f0; padding: 2px 4px; border-radius: 2px; }
+        h1, h2, h3 { margin-top: 1em; margin-bottom: 0.5em; }
+        p { margin: 0.5em 0; }
+        em { font-style: italic; }
+        strong { font-weight: bold; }
       `;
       container.appendChild(style);
 
-      // Create PDF using jsPDF's html() method (like dompdf)
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      });
-
-      // Use jsPDF's html() method which handles pagination automatically
+      // Use jsPDF's html() method with custom font set
       await pdf.html(container, {
         callback: async (doc) => {
-          // Save the PDF
           const fileName = `${localTitle || 'note'}.pdf`;
           doc.save(fileName);
           
-          // Show success message using Tauri dialog
           setTimeout(async () => {
             try {
               await message(`PDF exported successfully!\n\nFile: ${fileName}\nLocation: Downloads folder`, {
@@ -293,10 +361,10 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
             setIsExportingPDF(false);
           }, 500);
         },
-        margin: [20, 20, 20, 20], // top, right, bottom, left margins in mm
-        autoPaging: 'text', // Enable automatic page breaks
-        width: 170, // Content width in mm (A4 width 210mm - 40mm margins)
-        windowWidth: 650, // Rendering width in pixels (matches content width ratio)
+        margin: [20, 20, 20, 20],
+        autoPaging: 'text',
+        width: 170,
+        windowWidth: 650,
       });
     } catch (error) {
       console.error('PDF export failed:', error);
