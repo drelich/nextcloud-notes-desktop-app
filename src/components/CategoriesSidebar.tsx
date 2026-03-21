@@ -20,6 +20,7 @@ interface CategoriesSidebarProps {
   selectedCategory: string;
   onSelectCategory: (category: string) => void;
   onCreateCategory: (name: string) => void;
+  onRenameCategory: (oldName: string, newName: string) => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   username: string;
@@ -41,6 +42,7 @@ export function CategoriesSidebar({
   selectedCategory, 
   onSelectCategory,
   onCreateCategory,
+  onRenameCategory,
   isCollapsed,
   onToggleCollapse,
   username,
@@ -58,14 +60,24 @@ export function CategoriesSidebar({
 }: CategoriesSidebarProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
+  const [renameCategoryValue, setRenameCategoryValue] = useState('');
   const [isSettingsCollapsed, setIsSettingsCollapsed] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isCreating && inputRef.current) {
       inputRef.current.focus();
     }
   }, [isCreating]);
+
+  useEffect(() => {
+    if (renamingCategory && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [renamingCategory]);
 
   const handleCreateCategory = () => {
     if (newCategoryName.trim()) {
@@ -75,12 +87,34 @@ export function CategoriesSidebar({
     }
   };
 
+  const handleRenameCategory = () => {
+    if (renameCategoryValue.trim() && renamingCategory && renameCategoryValue.trim() !== renamingCategory) {
+      onRenameCategory(renamingCategory, renameCategoryValue.trim());
+    }
+    setRenamingCategory(null);
+    setRenameCategoryValue('');
+  };
+
+  const startRenaming = (category: string) => {
+    setRenamingCategory(category);
+    setRenameCategoryValue(category);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleCreateCategory();
     } else if (e.key === 'Escape') {
       setIsCreating(false);
       setNewCategoryName('');
+    }
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleRenameCategory();
+    } else if (e.key === 'Escape') {
+      setRenamingCategory(null);
+      setRenameCategoryValue('');
     }
   };
 
@@ -143,20 +177,58 @@ export function CategoriesSidebar({
           </button>
 
           {categories.map((category) => (
-            <button
-              key={category}
-              onClick={() => onSelectCategory(category)}
-              className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center ${
-                selectedCategory === category 
-                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' 
-                  : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-              }`}
-            >
-              <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-              </svg>
-              <span className="text-sm truncate">{category}</span>
-            </button>
+            renamingCategory === category ? (
+              <div key={category} className="space-y-1">
+                <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-700 rounded-lg border border-blue-500">
+                  <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                  </svg>
+                  <input
+                    ref={renameInputRef}
+                    type="text"
+                    value={renameCategoryValue}
+                    onChange={(e) => setRenameCategoryValue(e.target.value)}
+                    onKeyDown={handleRenameKeyDown}
+                    onBlur={handleRenameCategory}
+                    className="flex-1 text-sm px-2 py-1 border-none bg-transparent text-gray-900 dark:text-gray-100 focus:outline-none"
+                  />
+                </div>
+                <div className="px-3 text-xs text-gray-500 dark:text-gray-400">
+                  Press <kbd className="px-1 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-xs">Enter</kbd> to save, <kbd className="px-1 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-xs">Esc</kbd> to cancel
+                </div>
+              </div>
+            ) : (
+              <div
+                key={category}
+                className={`group w-full px-3 py-2 rounded-lg transition-colors flex items-center ${
+                  selectedCategory === category 
+                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' 
+                    : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                }`}
+              >
+                <button
+                  onClick={() => onSelectCategory(category)}
+                  className="flex items-center flex-1 min-w-0 text-left"
+                >
+                  <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                  </svg>
+                  <span className="text-sm truncate">{category}</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startRenaming(category);
+                  }}
+                  className="ml-2 p-1 opacity-0 group-hover:opacity-100 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition-opacity flex-shrink-0"
+                  title="Rename category"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </button>
+              </div>
+            )
           ))}
 
           {isCreating && (
