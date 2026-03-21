@@ -1,5 +1,6 @@
 import React from 'react';
 import { Note } from '../types';
+import { SyncStatus } from '../services/syncManager';
 
 interface NotesListProps {
   notes: Note[];
@@ -13,6 +14,9 @@ interface NotesListProps {
   showFavoritesOnly: boolean;
   onToggleFavorites: () => void;
   hasUnsavedChanges: boolean;
+  syncStatus: SyncStatus;
+  pendingSyncCount: number;
+  isOnline: boolean;
 }
 
 export function NotesList({
@@ -27,6 +31,9 @@ export function NotesList({
   showFavoritesOnly,
   onToggleFavorites,
   hasUnsavedChanges,
+  syncStatus: _syncStatus,
+  pendingSyncCount,
+  isOnline,
 }: NotesListProps) {
   const [isSyncing, setIsSyncing] = React.useState(false);
   const [deleteClickedId, setDeleteClickedId] = React.useState<number | null>(null);
@@ -117,7 +124,22 @@ export function NotesList({
     >
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Notes</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Notes</h2>
+            {!isOnline && (
+              <span className="px-2 py-0.5 text-xs font-medium bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 rounded-full flex items-center gap-1">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3" />
+                </svg>
+                Offline
+              </span>
+            )}
+            {pendingSyncCount > 0 && (
+              <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full">
+                {pendingSyncCount} pending
+              </span>
+            )}
+          </div>
           <div className="flex items-center space-x-1">
             <button
               onClick={handleSync}

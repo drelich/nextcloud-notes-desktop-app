@@ -5,6 +5,9 @@ import { NoteEditor } from './components/NoteEditor';
 import { CategoriesSidebar } from './components/CategoriesSidebar';
 import { NextcloudAPI } from './api/nextcloud';
 import { Note } from './types';
+import { syncManager, SyncStatus } from './services/syncManager';
+import { localDB } from './db/localDB';
+import { useOnlineStatus } from './hooks/useOnlineStatus';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -25,43 +28,60 @@ function App() {
   const [editorFontSize, setEditorFontSize] = useState(14);
   const [previewFont, setPreviewFont] = useState('Merriweather');
   const [previewFontSize, setPreviewFontSize] = useState(16);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const isOnline = useOnlineStatus();
 
   useEffect(() => {
-    const savedServer = localStorage.getItem('serverURL');
-    const savedUsername = localStorage.getItem('username');
-    const savedPassword = localStorage.getItem('password');
-    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | 'system' | null;
-    const savedEditorFont = localStorage.getItem('editorFont');
-    const savedPreviewFont = localStorage.getItem('previewFont');
+    const initApp = async () => {
+      await localDB.init();
+      
+      const savedServer = localStorage.getItem('serverURL');
+      const savedUsername = localStorage.getItem('username');
+      const savedPassword = localStorage.getItem('password');
+      const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | 'system' | null;
+      const savedEditorFont = localStorage.getItem('editorFont');
+      const savedPreviewFont = localStorage.getItem('previewFont');
 
-    if (savedTheme) {
-      setTheme(savedTheme);
-    }
-    if (savedEditorFont) {
-      setEditorFont(savedEditorFont);
-    }
-    if (savedPreviewFont) {
-      setPreviewFont(savedPreviewFont);
-    }
-    const savedEditorFontSize = localStorage.getItem('editorFontSize');
-    const savedPreviewFontSize = localStorage.getItem('previewFontSize');
-    if (savedEditorFontSize) {
-      setEditorFontSize(parseInt(savedEditorFontSize, 10));
-    }
-    if (savedPreviewFontSize) {
-      setPreviewFontSize(parseInt(savedPreviewFontSize, 10));
-    }
+      if (savedTheme) {
+        setTheme(savedTheme);
+      }
+      if (savedEditorFont) {
+        setEditorFont(savedEditorFont);
+      }
+      if (savedPreviewFont) {
+        setPreviewFont(savedPreviewFont);
+      }
+      const savedEditorFontSize = localStorage.getItem('editorFontSize');
+      const savedPreviewFontSize = localStorage.getItem('previewFontSize');
+      if (savedEditorFontSize) {
+        setEditorFontSize(parseInt(savedEditorFontSize, 10));
+      }
+      if (savedPreviewFontSize) {
+        setPreviewFontSize(parseInt(savedPreviewFontSize, 10));
+      }
 
-    if (savedServer && savedUsername && savedPassword) {
-      const apiInstance = new NextcloudAPI({
-        serverURL: savedServer,
-        username: savedUsername,
-        password: savedPassword,
-      });
-      setApi(apiInstance);
-      setUsername(savedUsername);
-      setIsLoggedIn(true);
-    }
+      if (savedServer && savedUsername && savedPassword) {
+        const apiInstance = new NextcloudAPI({
+          serverURL: savedServer,
+          username: savedUsername,
+          password: savedPassword,
+        });
+        setApi(apiInstance);
+        syncManager.setAPI(apiInstance);
+        setUsername(savedUsername);
+        setIsLoggedIn(true);
+        
+        // Load notes from local DB immediately
+        const localNotes = await localDB.getAllNotes();
+        if (localNotes.length > 0) {
+          setNotes(localNotes.sort((a, b) => b.modified - a.modified));
+          setSelectedNoteId(localNotes[0].id);
+        }
+      }
+    };
+    
+    initApp();
   }, []);
 
   useEffect(() => {
@@ -89,42 +109,61 @@ function App() {
   }, [effectiveTheme]);
 
   useEffect(() => {
+    syncManager.setStatusCallback((status, count) => {
+      setSyncStatus(status);
+      setPendingSyncCount(count);
+    });
+  }, []);
+
+  useEffect(() => {
     if (api && isLoggedIn) {
-      syncNotes();
-      const interval = setInterval(syncNotes, 300000);
+      loadNotes();
+      const interval = setInterval(() => syncNotes(), 300000);
       return () => clearInterval(interval);
     }
   }, [api, isLoggedIn]);
 
-  const syncNotes = async () => {
-    if (!api) return;
+  const loadNotes = async () => {
     try {
-      const fetched = await api.fetchNotes();
-      setNotes(fetched.sort((a, b) => b.modified - a.modified));
-      if (!selectedNoteId && fetched.length > 0) {
-        setSelectedNoteId(fetched[0].id);
+      const loadedNotes = await syncManager.loadNotes();
+      setNotes(loadedNotes.sort((a, b) => b.modified - a.modified));
+      if (!selectedNoteId && loadedNotes.length > 0) {
+        setSelectedNoteId(loadedNotes[0].id);
       }
+    } catch (error) {
+      console.error('Failed to load notes:', error);
+    }
+  };
+
+  const syncNotes = async () => {
+    try {
+      await syncManager.syncWithServer();
+      await loadNotes();
     } catch (error) {
       console.error('Sync failed:', error);
     }
   };
 
-  const handleLogin = (serverURL: string, username: string, password: string) => {
+  const handleLogin = async (serverURL: string, username: string, password: string) => {
     localStorage.setItem('serverURL', serverURL);
     localStorage.setItem('username', username);
     localStorage.setItem('password', password);
 
     const apiInstance = new NextcloudAPI({ serverURL, username, password });
     setApi(apiInstance);
+    syncManager.setAPI(apiInstance);
     setUsername(username);
     setIsLoggedIn(true);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     localStorage.removeItem('serverURL');
     localStorage.removeItem('username');
     localStorage.removeItem('password');
+    await localDB.clearNotes();
+    await localDB.clearSyncQueue();
     setApi(null);
+    syncManager.setAPI(null);
     setUsername('');
     setNotes([]);
     setSelectedNoteId(null);
@@ -157,7 +196,6 @@ function App() {
   };
 
   const handleCreateNote = async () => {
-    if (!api) return;
     try {
       const timestamp = new Date().toLocaleString('en-US', {
         year: 'numeric',
@@ -168,7 +206,7 @@ function App() {
         hour12: false,
       }).replace(/[/:]/g, '-').replace(', ', ' ');
       
-      const note = await api.createNote(`New Note ${timestamp}`, '', selectedCategory);
+      const note = await syncManager.createNote(`New Note ${timestamp}`, '', selectedCategory);
       setNotes([note, ...notes]);
       setSelectedNoteId(note.id);
     } catch (error) {
@@ -183,28 +221,21 @@ function App() {
   };
 
   const handleUpdateNote = async (updatedNote: Note) => {
-    if (!api) return;
     try {
-      console.log('Sending to API - content length:', updatedNote.content.length);
-      console.log('Sending to API - last 50 chars:', updatedNote.content.slice(-50));
-      const result = await api.updateNote(updatedNote);
-      console.log('Received from API - content length:', result.content.length);
-      console.log('Received from API - last 50 chars:', result.content.slice(-50));
-      // Update notes array with server response now that we have manual save
-      setNotes(notes.map(n => n.id === result.id ? result : n));
+      await syncManager.updateNote(updatedNote);
+      setNotes(notes.map(n => n.id === updatedNote.id ? updatedNote : n));
     } catch (error) {
       console.error('Update note failed:', error);
     }
   };
 
   const handleDeleteNote = async (note: Note) => {
-    if (!api) return;
-    
     try {
-      await api.deleteNote(note.id);
-      setNotes(notes.filter(n => n.id !== note.id));
+      await syncManager.deleteNote(note.id);
+      const remainingNotes = notes.filter(n => n.id !== note.id);
+      setNotes(remainingNotes);
       if (selectedNoteId === note.id) {
-        setSelectedNoteId(notes[0]?.id || null);
+        setSelectedNoteId(remainingNotes[0]?.id || null);
       }
     } catch (error) {
       console.error('Delete note failed:', error);
@@ -267,6 +298,9 @@ function App() {
             showFavoritesOnly={showFavoritesOnly}
             onToggleFavorites={() => setShowFavoritesOnly(!showFavoritesOnly)}
             hasUnsavedChanges={hasUnsavedChanges}
+            syncStatus={syncStatus}
+            pendingSyncCount={pendingSyncCount}
+            isOnline={isOnline}
           />
         </>
       )}
