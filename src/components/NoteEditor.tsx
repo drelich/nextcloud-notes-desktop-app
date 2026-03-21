@@ -77,13 +77,23 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
       return;
     }
 
+    // Guard: Only process if localContent has been updated for the current note
+    // This prevents processing stale content from the previous note
+    if (previousNoteIdRef.current !== note.id) {
+      console.log(`[Note ${note.id}] Skipping image processing - waiting for content to sync (previousNoteIdRef: ${previousNoteIdRef.current})`);
+      return;
+    }
+
     const processImages = async () => {
+      console.log(`[Note ${note.id}] Processing images in preview mode. Content length: ${localContent.length}`);
       setIsLoadingImages(true);
+      setProcessedContent(''); // Clear old content immediately
       
       // Find all image references in markdown: ![alt](path)
       const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
       let content = localContent;
       const matches = [...localContent.matchAll(imageRegex)];
+      console.log(`[Note ${note.id}] Found ${matches.length} images to process`);
       
       for (const match of matches) {
         const [fullMatch, alt, imagePath] = match;
@@ -121,11 +131,13 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
   useEffect(() => {
     const loadNewNote = () => {
       if (note) {
+        console.log(`[Note ${note.id}] Loading note. Title: "${note.title}", Content length: ${note.content.length}`);
         setLocalTitle(note.title);
         setLocalContent(note.content);
         setLocalCategory(note.category || '');
         setLocalFavorite(note.favorite);
         setHasUnsavedChanges(false);
+        setProcessedContent(''); // Clear preview content immediately
         
         const firstLine = note.content.split('\n')[0].replace(/^#+\s*/, '').trim();
         const titleMatchesFirstLine = note.title === firstLine || note.title === firstLine.substring(0, 50);
@@ -136,10 +148,13 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
     };
 
     if (previousNoteIdRef.current !== null && previousNoteIdRef.current !== note?.id) {
+      console.log(`Switching from note ${previousNoteIdRef.current} to note ${note?.id}`);
+      // Clear preview content immediately when switching notes
+      setProcessedContent('');
       if (hasUnsavedChanges) {
         handleSave();
       }
-      setTimeout(loadNewNote, 100);
+      loadNewNote();
     } else {
       loadNewNote();
     }

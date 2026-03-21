@@ -30,12 +30,43 @@ export function NotesList({
 }: NotesListProps) {
   const [isSyncing, setIsSyncing] = React.useState(false);
   const [deleteClickedId, setDeleteClickedId] = React.useState<number | null>(null);
+  const [width, setWidth] = React.useState(320);
+  const [isResizing, setIsResizing] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
 
   const handleSync = async () => {
     setIsSyncing(true);
     await onSync();
     setTimeout(() => setIsSyncing(false), 500);
   };
+
+  React.useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      const newWidth = e.clientX - (containerRef.current?.getBoundingClientRect().left || 0);
+      if (newWidth >= 240 && newWidth <= 600) {
+        setWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing]);
 
   const handleDeleteClick = (note: Note, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -79,7 +110,11 @@ export function NotesList({
   };
 
   return (
-    <div className="w-80 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+    <div 
+      ref={containerRef}
+      className="bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col relative"
+      style={{ width: `${width}px`, minWidth: '240px', maxWidth: '600px' }}
+    >
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Notes</h2>
@@ -206,6 +241,17 @@ export function NotesList({
             </div>
           ))
         )}
+      </div>
+      
+      {/* Resize Handle */}
+      <div
+        className="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-blue-500 transition-colors group"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          setIsResizing(true);
+        }}
+      >
+        <div className="absolute inset-y-0 -right-1 w-3" />
       </div>
     </div>
   );
