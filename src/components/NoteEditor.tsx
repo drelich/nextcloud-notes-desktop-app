@@ -64,8 +64,16 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
       // Use setTimeout to ensure DOM has updated
       setTimeout(() => {
         if (textareaRef.current) {
+          // Save cursor position and scroll position
+          const cursorPosition = textareaRef.current.selectionStart;
+          const scrollTop = textareaRef.current.scrollTop;
+          
           textareaRef.current.style.height = 'auto';
           textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+          
+          // Restore cursor position and scroll position
+          textareaRef.current.setSelectionRange(cursorPosition, cursorPosition);
+          textareaRef.current.scrollTop = scrollTop;
         }
       }, 0);
     }

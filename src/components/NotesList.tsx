@@ -37,7 +37,10 @@ export function NotesList({
 }: NotesListProps) {
   const [isSyncing, setIsSyncing] = React.useState(false);
   const [deleteClickedId, setDeleteClickedId] = React.useState<number | null>(null);
-  const [width, setWidth] = React.useState(320);
+  const [width, setWidth] = React.useState(() => {
+    const saved = localStorage.getItem('notesListWidth');
+    return saved ? parseInt(saved, 10) : 320;
+  });
   const [isResizing, setIsResizing] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
@@ -53,6 +56,7 @@ export function NotesList({
       const newWidth = e.clientX - (containerRef.current?.getBoundingClientRect().left || 0);
       if (newWidth >= 240 && newWidth <= 600) {
         setWidth(newWidth);
+        localStorage.setItem('notesListWidth', newWidth.toString());
       }
     };
 
@@ -116,10 +120,35 @@ export function NotesList({
     return cleanedPreview;
   };
 
+  const getCategoryColor = (category: string) => {
+    // Generate consistent pastel color based on category name
+    let hash = 0;
+    for (let i = 0; i < category.length; i++) {
+      hash = category.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    // Pastel color palette (light, subtle tones)
+    const colors = [
+      { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300' },
+      { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300' },
+      { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-700 dark:text-purple-300' },
+      { bg: 'bg-pink-100 dark:bg-pink-900/30', text: 'text-pink-700 dark:text-pink-300' },
+      { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-300' },
+      { bg: 'bg-indigo-100 dark:bg-indigo-900/30', text: 'text-indigo-700 dark:text-indigo-300' },
+      { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300' },
+      { bg: 'bg-teal-100 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-300' },
+      { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300' },
+      { bg: 'bg-cyan-100 dark:bg-cyan-900/30', text: 'text-cyan-700 dark:text-cyan-300' },
+    ];
+    
+    const index = Math.abs(hash) % colors.length;
+    return colors[index];
+  };
+
   return (
     <div 
       ref={containerRef}
-      className="bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col relative"
+      className="bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col relative flex-shrink-0"
       style={{ width: `${width}px`, minWidth: '240px', maxWidth: '600px' }}
     >
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
@@ -251,8 +280,16 @@ export function NotesList({
                 </div>
               </div>
 
-              <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-2">
+              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
                 <span>{formatDate(note.modified)}</span>
+                {note.category && (() => {
+                  const colors = getCategoryColor(note.category);
+                  return (
+                    <span className={`px-2 py-0.5 ${colors.bg} ${colors.text} rounded-full text-xs font-medium`}>
+                      {note.category}
+                    </span>
+                  );
+                })()}
               </div>
 
               {getPreview(note.content) && (
