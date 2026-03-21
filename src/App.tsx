@@ -220,6 +220,31 @@ function App() {
     }
   };
 
+  const handleRenameCategory = async (oldName: string, newName: string) => {
+    // Update all notes with the old category to the new category
+    const notesToUpdate = notes.filter(note => note.category === oldName);
+    
+    for (const note of notesToUpdate) {
+      try {
+        const updatedNote = { ...note, category: newName };
+        await syncManager.updateNote(updatedNote);
+        setNotes(prevNotes => prevNotes.map(n => n.id === note.id ? updatedNote : n));
+      } catch (error) {
+        console.error(`Failed to update note ${note.id}:`, error);
+      }
+    }
+
+    // Update manual categories list
+    setManualCategories(prev => 
+      prev.map(cat => cat === oldName ? newName : cat)
+    );
+
+    // Update selected category if it was the renamed one
+    if (selectedCategory === oldName) {
+      setSelectedCategory(newName);
+    }
+  };
+
   const handleUpdateNote = async (updatedNote: Note) => {
     try {
       await syncManager.updateNote(updatedNote);
@@ -271,6 +296,7 @@ function App() {
             selectedCategory={selectedCategory}
             onSelectCategory={setSelectedCategory}
             onCreateCategory={handleCreateCategory}
+            onRenameCategory={handleRenameCategory}
             isCollapsed={isCategoriesCollapsed}
             onToggleCollapse={() => setIsCategoriesCollapsed(!isCategoriesCollapsed)}
             username={username}
