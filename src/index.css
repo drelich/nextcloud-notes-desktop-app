@@ -16,6 +16,19 @@ code {
     monospace;
 }
 
+/* Override Tailwind prose inline code styling to prevent overlap */
+.prose code {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  vertical-align: baseline !important;
+  line-height: 1 !important;
+}
+
+.prose code::before,
+.prose code::after {
+  content: none !important;
+}
+
 /* TipTap Editor Styles */
 .ProseMirror {
   min-height: 100%;
@@ -113,11 +126,13 @@ code {
 
 .ProseMirror code {
   background-color: #f3f4f6;
-  padding: 0.125rem 0.25rem;
+  padding: 0.05rem 0.25rem;
   border-radius: 0.25rem;
   font-family: 'Courier New', monospace;
   font-size: 1.1em;
   color: #1f2937;
+  vertical-align: baseline;
+  line-height: 1;
 }
 
 .dark .ProseMirror code {
