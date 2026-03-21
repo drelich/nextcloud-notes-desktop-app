@@ -768,6 +768,13 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
                 onInsertFile={handleInsertFile}
                 isUploading={isUploading}
               />
+              <input
+                ref={fileInputRef}
+                type="file"
+                onChange={handleAttachmentUpload}
+                className="hidden"
+                accept="image/*,.pdf,.doc,.docx,.txt,.md"
+              />
               <textarea
                 ref={textareaRef}
                 value={localContent}
