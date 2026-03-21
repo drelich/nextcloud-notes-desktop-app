@@ -1,0 +1,90 @@
+/* Editor Fonts (Monospace) */
+
+/* Source Code Pro */
+@font-face {
+  font-family: 'Source Code Pro';
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('./SourceCodePro-VariableFont_wght.ttf') format('truetype');
+}
+
+/* Roboto Mono */
+@font-face {
+  font-family: 'Roboto Mono';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: swap;
+  src: url('./RobotoMono-VariableFont_wght.ttf') format('truetype');
+}
+
+/* Inconsolata */
+@font-face {
+  font-family: 'Inconsolata';
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('./Inconsolata-VariableFont_wdth,wght.ttf') format('truetype');
+}
+
+/* Preview Fonts (Serif) */
+
+/* Merriweather */
+@font-face {
+  font-family: 'Merriweather';
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url('./Merriweather-VariableFont_opsz,wdth,wght.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Merriweather';
+  font-style: italic;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url('./Merriweather-Italic-VariableFont_opsz,wdth,wght.ttf') format('truetype');
+}
+
+/* Crimson Pro */
+@font-face {
+  font-family: 'Crimson Pro';
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('./CrimsonPro-VariableFont_wght.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Crimson Pro';
+  font-style: italic;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('./CrimsonPro-Italic-VariableFont_wght.ttf') format('truetype');
+}
+
+/* Roboto Serif */
+@font-face {
+  font-family: 'Roboto Serif';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('./RobotoSerif-VariableFont_GRAD,opsz,wdth,wght.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Roboto Serif';
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('./RobotoSerif-Italic-VariableFont_GRAD,opsz,wdth,wght.ttf') format('truetype');
+}
+
+/* Average */
+@font-face {
+  font-family: 'Average';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./Average-Regular.ttf') format('truetype');
+}
