@@ -38,6 +38,7 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
   const [isLoadingImages, setIsLoadingImages] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const previousNoteIdRef = useRef<number | null>(null);
+  const previousNoteContentRef = useRef<string>('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -131,12 +132,12 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
   useEffect(() => {
     const loadNewNote = () => {
       if (note) {
-        console.log(`[Note ${note.id}] Loading note. Title: "${note.title}", Content length: ${note.content.length}`);
         setLocalTitle(note.title);
         setLocalContent(note.content);
         setLocalCategory(note.category || '');
         setLocalFavorite(note.favorite);
         setHasUnsavedChanges(false);
+        setIsPreviewMode(false);
         setProcessedContent(''); // Clear preview content immediately
         
         const firstLine = note.content.split('\n')[0].replace(/^#+\s*/, '').trim();
@@ -144,21 +145,29 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
         setTitleManuallyEdited(!titleMatchesFirstLine);
         
         previousNoteIdRef.current = note.id;
+        previousNoteContentRef.current = note.content;
       }
     };
 
+    // Switching to a different note
     if (previousNoteIdRef.current !== null && previousNoteIdRef.current !== note?.id) {
       console.log(`Switching from note ${previousNoteIdRef.current} to note ${note?.id}`);
-      // Clear preview content immediately when switching notes
       setProcessedContent('');
       if (hasUnsavedChanges) {
         handleSave();
       }
       loadNewNote();
-    } else {
+    } 
+    // Same note but content changed from server (and no unsaved local changes)
+    else if (note && previousNoteIdRef.current === note.id && !hasUnsavedChanges && previousNoteContentRef.current !== note.content) {
+      console.log(`Note ${note.id} content changed from server (prev: ${previousNoteContentRef.current.length} chars, new: ${note.content.length} chars)`);
       loadNewNote();
     }
-  }, [note?.id]);
+    // Initial load
+    else if (!note || previousNoteIdRef.current === null) {
+      loadNewNote();
+    }
+  }, [note?.id, note?.content, note?.modified]);
 
   const handleSave = () => {
     if (!note || !hasUnsavedChanges) return;
