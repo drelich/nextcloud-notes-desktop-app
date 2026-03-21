@@ -305,6 +305,38 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
         console.error('Failed to load code font:', codeFontError);
       }
 
+      // Process images to embed them as data URLs
+      let contentForPDF = localContent;
+      if (api) {
+        const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+        const matches = [...localContent.matchAll(imageRegex)];
+        
+        for (const match of matches) {
+          const [fullMatch, alt, imagePath] = match;
+          
+          // Skip external URLs
+          if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+            continue;
+          }
+          
+          // Check cache first
+          const cacheKey = `${note.id}:${imagePath}`;
+          if (imageCache.has(cacheKey)) {
+            const dataUrl = imageCache.get(cacheKey)!;
+            contentForPDF = contentForPDF.replace(fullMatch, `![${alt}](${dataUrl})`);
+            continue;
+          }
+          
+          try {
+            const dataUrl = await api.fetchAttachment(note.id, imagePath, note.category);
+            imageCache.set(cacheKey, dataUrl);
+            contentForPDF = contentForPDF.replace(fullMatch, `![${alt}](${dataUrl})`);
+          } catch (error) {
+            console.error(`Failed to fetch attachment for PDF: ${imagePath}`, error);
+          }
+        }
+      }
+
       const container = document.createElement('div');
       container.style.fontFamily = `"${previewFont}", Georgia, serif`;
       container.style.fontSize = `${previewFontSize}px`;
@@ -323,7 +355,7 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
       container.appendChild(titleElement);
       
       const contentElement = document.createElement('div');
-      const html = marked.parse(localContent || '', { async: false }) as string;
+      const html = marked.parse(contentForPDF || '', { async: false }) as string;
       contentElement.innerHTML = html;
       contentElement.style.fontSize = `${previewFontSize}px`;
       contentElement.style.lineHeight = '1.6';
@@ -332,14 +364,21 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
       
       const style = document.createElement('style');
       style.textContent = `
-        * { font-family: "${previewFont}", Georgia, serif !important; }
+        body, p, h1, h2, h3, div { font-family: "${previewFont}", Georgia, serif !important; }
         code, pre, pre * { font-family: "Source Code Pro", "Courier New", monospace !important; }
         pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto; }
-        code { background: #f0f0f0; padding: 2px 4px; border-radius: 2px; }
-        h1, h2, h3 { margin-top: 1em; margin-bottom: 0.5em; }
+        code { padding: 0; }
+        h1 { font-size: 2em; font-weight: bold; margin-top: 0.67em; margin-bottom: 0.67em; }
+        h2 { font-size: 1.5em; font-weight: bold; margin-top: 0.83em; margin-bottom: 0.83em; }
+        h3 { font-size: 1.17em; font-weight: bold; margin-top: 1em; margin-bottom: 1em; }
         p { margin: 0.5em 0; }
-        em { font-style: italic; }
-        strong { font-weight: bold; }
+        ul, ol { margin: 0.5em 0; padding-left: 2em; list-style-position: outside; font-family: "${previewFont}", Georgia, serif !important; }
+        ul { list-style-type: disc; }
+        ol { list-style-type: decimal; }
+        li { margin: 0.25em 0; display: list-item; font-family: "${previewFont}", Georgia, serif !important; }
+        em { font-style: italic; vertical-align: baseline; }
+        strong { font-weight: bold; vertical-align: baseline; line-height: inherit; }
+        img { max-width: 100%; height: auto; display: block; margin: 1em 0; }
       `;
       container.appendChild(style);
 
@@ -820,7 +859,7 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
                 </div>
               )}
               <div 
-                className={`prose prose-slate dark:prose-invert p-8 ${isFocusMode ? '' : 'max-w-none'} [&_code]:font-mono [&_pre]:font-mono [&_img]:max-w-full [&_img]:rounded-lg [&_img]:shadow-md`}
+                className={`prose prose-slate dark:prose-invert p-8 ${isFocusMode ? '' : 'max-w-none'} [&_code]:font-mono [&_pre]:font-mono [&_code]:py-0 [&_code]:px-1 [&_code]:align-baseline [&_code]:leading-none [&_img]:max-w-full [&_img]:rounded-lg [&_img]:shadow-md`}
                 style={{ fontSize: `${previewFontSize}px`, fontFamily: previewFont }}
                 dangerouslySetInnerHTML={{ 
                   __html: marked.parse(processedContent || '', { async: false }) as string 
