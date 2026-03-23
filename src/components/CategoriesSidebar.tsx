@@ -37,6 +37,19 @@ interface CategoriesSidebarProps {
   onPreviewFontSizeChange: (size: number) => void;
 }
 
+const CATEGORY_COLORS = [
+  { name: 'Blue', bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', preview: '#dbeafe', dot: '#3b82f6' },
+  { name: 'Green', bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300', preview: '#dcfce7', dot: '#22c55e' },
+  { name: 'Purple', bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-700 dark:text-purple-300', preview: '#f3e8ff', dot: '#a855f7' },
+  { name: 'Pink', bg: 'bg-pink-100 dark:bg-pink-900/30', text: 'text-pink-700 dark:text-pink-300', preview: '#fce7f3', dot: '#ec4899' },
+  { name: 'Yellow', bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-300', preview: '#fef9c3', dot: '#eab308' },
+  { name: 'Red', bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300', preview: '#fee2e2', dot: '#ef4444' },
+  { name: 'Orange', bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300', preview: '#ffedd5', dot: '#f97316' },
+  { name: 'Teal', bg: 'bg-teal-100 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-300', preview: '#ccfbf1', dot: '#14b8a6' },
+  { name: 'Indigo', bg: 'bg-indigo-100 dark:bg-indigo-900/30', text: 'text-indigo-700 dark:text-indigo-300', preview: '#e0e7ff', dot: '#6366f1' },
+  { name: 'Cyan', bg: 'bg-cyan-100 dark:bg-cyan-900/30', text: 'text-cyan-700 dark:text-cyan-300', preview: '#cffafe', dot: '#06b6d4' },
+];
+
 export function CategoriesSidebar({ 
   categories, 
   selectedCategory, 
@@ -62,9 +75,33 @@ export function CategoriesSidebar({
   const [newCategoryName, setNewCategoryName] = useState('');
   const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
   const [renameCategoryValue, setRenameCategoryValue] = useState('');
+  const [categoryColors, setCategoryColors] = useState<Record<string, number>>({});
+  const [colorPickerCategory, setColorPickerCategory] = useState<string | null>(null);
   const [isSettingsCollapsed, setIsSettingsCollapsed] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // Load category colors from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('categoryColors');
+    if (saved) {
+      setCategoryColors(JSON.parse(saved));
+    }
+  }, []);
+
+  const setCategoryColor = (category: string, colorIndex: number | null) => {
+    const updated = { ...categoryColors };
+    if (colorIndex === null) {
+      delete updated[category];
+    } else {
+      updated[category] = colorIndex;
+    }
+    setCategoryColors(updated);
+    localStorage.setItem('categoryColors', JSON.stringify(updated));
+    setColorPickerCategory(null);
+    // Dispatch event to notify other components
+    window.dispatchEvent(new Event('categoryColorChanged'));
+  };
 
   useEffect(() => {
     if (isCreating && inputRef.current) {
@@ -198,35 +235,81 @@ export function CategoriesSidebar({
                 </div>
               </div>
             ) : (
-              <div
-                key={category}
-                className={`group w-full px-3 py-2 rounded-lg transition-colors flex items-center ${
-                  selectedCategory === category 
-                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' 
-                    : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-                }`}
-              >
-                <button
-                  onClick={() => onSelectCategory(category)}
-                  className="flex items-center flex-1 min-w-0 text-left"
+              <div key={category} className="relative">
+                <div
+                  className={`group w-full px-3 py-2 rounded-lg transition-colors flex items-center ${
+                    selectedCategory === category 
+                      ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' 
+                      : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}
                 >
-                  <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                  </svg>
-                  <span className="text-sm truncate">{category}</span>
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startRenaming(category);
-                  }}
-                  className="ml-2 p-1 opacity-0 group-hover:opacity-100 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition-opacity flex-shrink-0"
-                  title="Rename category"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
-                </button>
+                  <button
+                    onClick={() => onSelectCategory(category)}
+                    className="flex items-center flex-1 min-w-0 text-left"
+                  >
+                    {(() => {
+                      const colorIndex = categoryColors[category];
+                      const color = colorIndex !== undefined ? CATEGORY_COLORS[colorIndex] : null;
+                      return (
+                        <svg 
+                          className="w-4 h-4 mr-2 flex-shrink-0" 
+                          fill={color ? color.dot : "currentColor"}
+                          viewBox="0 0 24 24"
+                        >
+                          <path d="M3 7c0-1.1.9-2 2-2h4l2 2h6c1.1 0 2 .9 2 2v10c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V7z" />
+                        </svg>
+                      );
+                    })()}
+                    <span className="text-sm truncate">{category}</span>
+                  </button>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setColorPickerCategory(colorPickerCategory === category ? null : category);
+                      }}
+                      className="p-1 hover:bg-gray-300 dark:hover:bg-gray-600 rounded flex-shrink-0"
+                      title="Change color"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startRenaming(category);
+                      }}
+                      className="p-1 hover:bg-gray-300 dark:hover:bg-gray-600 rounded flex-shrink-0"
+                      title="Rename category"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                {colorPickerCategory === category && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 p-2 z-10">
+                    <div className="grid grid-cols-5 gap-1.5 mb-2">
+                      {CATEGORY_COLORS.map((color, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setCategoryColor(category, idx)}
+                          className="w-7 h-7 rounded hover:scale-110 transition-transform border-2 border-gray-300 dark:border-gray-600"
+                          style={{ backgroundColor: color.preview }}
+                          title={color.name}
+                        />
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setCategoryColor(category, null)}
+                      className="w-full text-xs py-1.5 px-2 bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 rounded text-gray-700 dark:text-gray-200 transition-colors"
+                    >
+                      Remove Color
+                    </button>
+                  </div>
+                )}
               </div>
             )
           ))}
