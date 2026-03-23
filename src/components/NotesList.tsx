@@ -42,7 +42,28 @@ export function NotesList({
     return saved ? parseInt(saved, 10) : 320;
   });
   const [isResizing, setIsResizing] = React.useState(false);
+  const [, forceUpdate] = React.useReducer(x => x + 1, 0);
   const containerRef = React.useRef<HTMLDivElement>(null);
+
+  // Listen for category color changes
+  React.useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'categoryColors') {
+        forceUpdate();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for changes in the same tab
+    const handleCustomEvent = () => forceUpdate();
+    window.addEventListener('categoryColorChanged', handleCustomEvent);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('categoryColorChanged', handleCustomEvent);
+    };
+  }, []);
 
   const handleSync = async () => {
     setIsSyncing(true);
@@ -121,25 +142,39 @@ export function NotesList({
   };
 
   const getCategoryColor = (category: string) => {
-    // Generate consistent pastel color based on category name
-    let hash = 0;
-    for (let i = 0; i < category.length; i++) {
-      hash = category.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    
-    // Pastel color palette (light, subtle tones)
+    // Color palette matching CategoriesSidebar
     const colors = [
       { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300' },
       { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300' },
       { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-700 dark:text-purple-300' },
       { bg: 'bg-pink-100 dark:bg-pink-900/30', text: 'text-pink-700 dark:text-pink-300' },
       { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-300' },
-      { bg: 'bg-indigo-100 dark:bg-indigo-900/30', text: 'text-indigo-700 dark:text-indigo-300' },
       { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300' },
-      { bg: 'bg-teal-100 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-300' },
       { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300' },
+      { bg: 'bg-teal-100 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-300' },
+      { bg: 'bg-indigo-100 dark:bg-indigo-900/30', text: 'text-indigo-700 dark:text-indigo-300' },
       { bg: 'bg-cyan-100 dark:bg-cyan-900/30', text: 'text-cyan-700 dark:text-cyan-300' },
     ];
+
+    // Check for custom color in localStorage first
+    const savedColors = localStorage.getItem('categoryColors');
+    if (savedColors) {
+      try {
+        const customColors = JSON.parse(savedColors);
+        if (customColors[category] !== undefined) {
+          return colors[customColors[category]];
+        }
+      } catch (e) {
+        // Fall through to hash-based color
+      }
+    }
+
+    // Fall back to hash-based color assignment
+    let hash = 2166136261; // FNV offset basis
+    for (let i = 0; i < category.length; i++) {
+      hash ^= category.charCodeAt(i);
+      hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+    }
     
     const index = Math.abs(hash) % colors.length;
     return colors[index];
