@@ -153,6 +153,33 @@ export class NextcloudAPI {
     return `${attachmentDir}/${fileName}`;
   }
 
+  async fetchCategoryColors(): Promise<Record<string, number>> {
+    const webdavPath = `/remote.php/dav/files/${this.username}/Notes/.category-colors.json`;
+    const url = `${this.serverURL}${webdavPath}`;
+    
+    try {
+      const response = await tauriFetch(url, {
+        headers: {
+          'Authorization': this.authHeader,
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          // File doesn't exist yet, return empty object
+          return {};
+        }
+        throw new Error(`Failed to fetch category colors: ${response.status}`);
+      }
+
+      const text = await response.text();
+      return JSON.parse(text);
+    } catch (error) {
+      console.warn('Could not fetch category colors, using empty:', error);
+      return {};
+    }
+  }
+
   async saveCategoryColors(colors: Record<string, number>): Promise<void> {
     const webdavPath = `/remote.php/dav/files/${this.username}/Notes/.category-colors.json`;
     const url = `${this.serverURL}${webdavPath}`;

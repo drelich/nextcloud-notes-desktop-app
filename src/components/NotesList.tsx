@@ -1,6 +1,7 @@
 import React from 'react';
 import { Note } from '../types';
 import { SyncStatus } from '../services/syncManager';
+import { categoryColorsSync } from '../services/categoryColorsSync';
 
 interface NotesListProps {
   notes: Note[];
@@ -47,20 +48,10 @@ export function NotesList({
 
   // Listen for category color changes
   React.useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'categoryColors') {
-        forceUpdate();
-      }
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Also listen for changes in the same tab
     const handleCustomEvent = () => forceUpdate();
     window.addEventListener('categoryColorChanged', handleCustomEvent);
     
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('categoryColorChanged', handleCustomEvent);
     };
   }, []);
@@ -156,28 +147,14 @@ export function NotesList({
       { bg: 'bg-cyan-100 dark:bg-cyan-900/30', text: 'text-cyan-700 dark:text-cyan-300' },
     ];
 
-    // Check for custom color in localStorage first
-    const savedColors = localStorage.getItem('categoryColors');
-    if (savedColors) {
-      try {
-        const customColors = JSON.parse(savedColors);
-        if (customColors[category] !== undefined) {
-          return colors[customColors[category]];
-        }
-      } catch (e) {
-        // Fall through to hash-based color
-      }
+    // Only return color if explicitly set by user
+    const colorIndex = categoryColorsSync.getColor(category);
+    if (colorIndex !== undefined) {
+      return colors[colorIndex];
     }
 
-    // Fall back to hash-based color assignment
-    let hash = 2166136261; // FNV offset basis
-    for (let i = 0; i < category.length; i++) {
-      hash ^= category.charCodeAt(i);
-      hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
-    }
-    
-    const index = Math.abs(hash) % colors.length;
-    return colors[index];
+    // No color set - return null to indicate no badge should be shown
+    return null;
   };
 
   return (
@@ -319,6 +296,7 @@ export function NotesList({
                 <span>{formatDate(note.modified)}</span>
                 {note.category && (() => {
                   const colors = getCategoryColor(note.category);
+                  if (!colors) return null;
                   return (
                     <span className={`px-2 py-0.5 ${colors.bg} ${colors.text} rounded-full text-xs font-medium`}>
                       {note.category}
