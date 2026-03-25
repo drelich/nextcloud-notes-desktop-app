@@ -296,9 +296,16 @@ export function NotesList({
                 <span>{formatDate(note.modified)}</span>
                 {note.category && (() => {
                   const colors = getCategoryColor(note.category);
-                  if (!colors) return null;
+                  if (colors) {
+                    return (
+                      <span className={`px-2 py-0.5 ${colors.bg} ${colors.text} rounded-full text-xs font-medium`}>
+                        {note.category}
+                      </span>
+                    );
+                  }
+                  // Show neutral badge when no color is set
                   return (
-                    <span className={`px-2 py-0.5 ${colors.bg} ${colors.text} rounded-full text-xs font-medium`}>
+                    <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full text-xs font-medium">
                       {note.category}
                     </span>
                   );
