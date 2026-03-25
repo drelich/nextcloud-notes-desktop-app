@@ -25,11 +25,13 @@ const imageCache = new Map<string, string>();
 
 
 export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, isFocusMode, onToggleFocusMode, editorFont = 'Source Code Pro', editorFontSize = 14, previewFont = 'Merriweather', previewFontSize = 16, api }: NoteEditorProps) {
+  const [localTitle, setLocalTitle] = useState('');
   const [localContent, setLocalContent] = useState('');
   const [localCategory, setLocalCategory] = useState('');
   const [localFavorite, setLocalFavorite] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [titleManuallyEdited, setTitleManuallyEdited] = useState(false);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [processedContent, setProcessedContent] = useState('');
@@ -138,10 +140,17 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
   useEffect(() => {
     const loadNewNote = () => {
       if (note) {
+        setLocalTitle(note.title);
         setLocalContent(note.content);
         setLocalCategory(note.category || '');
         setLocalFavorite(note.favorite);
         setHasUnsavedChanges(false);
+        setIsPreviewMode(false);
+        setProcessedContent(''); // Clear preview content immediately
+        
+        const firstLine = note.content.split('\n')[0].replace(/^#+\s*/, '').trim();
+        const titleMatchesFirstLine = note.title === firstLine || note.title === firstLine.substring(0, 50);
+        setTitleManuallyEdited(!titleMatchesFirstLine);
         
         previousNoteIdRef.current = note.id;
         previousNoteContentRef.current = note.content;
@@ -175,14 +184,9 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
     console.log('Last 50 chars:', localContent.slice(-50));
     setIsSaving(true);
     setHasUnsavedChanges(false);
-    
-    // Extract title from first line
-    const firstLine = localContent.split('\n')[0].replace(/^#+\s*/, '').trim();
-    const title = firstLine || 'Untitled';
-    
     onUpdateNote({
       ...note,
-      title,
+      title: localTitle,
       content: localContent,
       category: localCategory,
       favorite: localFavorite,
@@ -190,18 +194,36 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
     setTimeout(() => setIsSaving(false), 500);
   };
 
+  const handleTitleChange = (value: string) => {
+    setLocalTitle(value);
+    setTitleManuallyEdited(true);
+    setHasUnsavedChanges(true);
+  };
+
   const handleContentChange = (value: string) => {
     setLocalContent(value);
     setHasUnsavedChanges(true);
+    
+    if (!titleManuallyEdited) {
+      const firstLine = value.split('\n')[0].replace(/^#+\s*/, '').trim();
+      if (firstLine) {
+        setLocalTitle(firstLine.substring(0, 50));
+      }
+    }
   };
 
   const handleDiscard = () => {
     if (!note) return;
     
+    setLocalTitle(note.title);
     setLocalContent(note.content);
     setLocalCategory(note.category || '');
     setLocalFavorite(note.favorite);
     setHasUnsavedChanges(false);
+    
+    const firstLine = note.content.split('\n')[0].replace(/^#+\s*/, '').trim();
+    const titleMatchesFirstLine = note.title === firstLine || note.title === firstLine.substring(0, 50);
+    setTitleManuallyEdited(!titleMatchesFirstLine);
   };
 
   const loadFontAsBase64 = async (fontPath: string): Promise<string> => {
@@ -322,8 +344,7 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
       container.style.color = '#000000';
       
       const titleElement = document.createElement('h1');
-      const firstLine = localContent.split('\n')[0].replace(/^#+\s*/, '').trim();
-      titleElement.textContent = firstLine || 'Untitled';
+      titleElement.textContent = localTitle || 'Untitled';
       titleElement.style.marginTop = '0';
       titleElement.style.marginBottom = '20px';
       titleElement.style.fontSize = '24px';
@@ -364,8 +385,7 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
       // Use jsPDF's html() method with custom font set
       await pdf.html(container, {
         callback: async (doc) => {
-          const firstLine = localContent.split('\n')[0].replace(/^#+\s*/, '').trim();
-          const fileName = `${firstLine || 'note'}.pdf`;
+          const fileName = `${localTitle || 'note'}.pdf`;
           doc.save(fileName);
           
           setTimeout(async () => {
@@ -402,12 +422,9 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
   const handleFavoriteToggle = () => {
     setLocalFavorite(!localFavorite);
     if (note) {
-      const firstLine = localContent.split('\n')[0].replace(/^#+\s*/, '').trim();
-      const title = firstLine || 'Untitled';
-      
       onUpdateNote({
         ...note,
-        title,
+        title: localTitle,
         content: localContent,
         category: localCategory,
         favorite: !localFavorite,
@@ -421,24 +438,12 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
   };
 
   const handleAttachmentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('handleAttachmentUpload called');
     const file = event.target.files?.[0];
-    console.log('File selected:', file?.name);
-    console.log('Current note ID:', note?.id);
-    console.log('Current note title:', note?.title);
-    console.log('Current note category:', note?.category);
-    console.log('API available:', !!api);
-    
-    if (!file || !note || !api) {
-      console.log('Upload aborted - missing:', { file: !!file, note: !!note, api: !!api });
-      return;
-    }
+    if (!file || !note || !api) return;
 
     setIsUploading(true);
-    console.log('Starting upload for file:', file.name, 'to note:', note.id);
     try {
       const relativePath = await api.uploadAttachment(note.id, file, note.category);
-      console.log('Upload successful, path:', relativePath);
       
       // Determine if it's an image or other file
       const isImage = file.type.startsWith('image/');
@@ -466,10 +471,16 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
         setHasUnsavedChanges(true);
       }
       
-      console.log('Attachment uploaded successfully!');
+      await message(`Attachment uploaded successfully!`, {
+        title: 'Upload Complete',
+        kind: 'info',
+      });
     } catch (error) {
       console.error('Upload failed:', error);
-      alert(`Failed to upload attachment: ${error}`);
+      await message(`Failed to upload attachment: ${error}`, {
+        title: 'Upload Failed',
+        kind: 'error',
+      });
     } finally {
       setIsUploading(false);
       // Reset file input
@@ -656,6 +667,36 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
 
   return (
     <div className="flex-1 flex flex-col bg-white dark:bg-gray-900">
+      {/* Header */}
+      <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <input
+              type="text"
+              value={localTitle}
+              onChange={(e) => handleTitleChange(e.target.value)}
+              placeholder="Note Title"
+              className="w-full text-2xl font-semibold border-none outline-none focus:ring-0 bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400"
+            />
+          </div>
+          
+          <button
+            onClick={handleFavoriteToggle}
+            className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
+            title={localFavorite ? "Remove from Favorites" : "Add to Favorites"}
+          >
+            <svg 
+              className={`w-5 h-5 ${localFavorite ? 'text-yellow-500 fill-current' : 'text-gray-400 dark:text-gray-500'}`}
+              fill={localFavorite ? "currentColor" : "none"}
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
       {/* Toolbar */}
       <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-3 bg-gray-50 dark:bg-gray-800/50">
         <div className="flex items-center justify-between">
@@ -725,21 +766,6 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
 
             {/* Action Buttons */}
             <div className="flex items-center gap-1 pl-2 border-l border-gray-200 dark:border-gray-700">
-              <button
-                onClick={handleFavoriteToggle}
-                className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                title={localFavorite ? "Remove from Favorites" : "Add to Favorites"}
-              >
-                <svg 
-                  className={`w-5 h-5 ${localFavorite ? 'text-yellow-500 fill-current' : 'text-gray-600 dark:text-gray-400'}`}
-                  fill={localFavorite ? "currentColor" : "none"}
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                </svg>
-              </button>
-
               <button
                 onClick={handleSave}
                 disabled={!hasUnsavedChanges || isSaving}
@@ -861,11 +887,9 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
                 value={localContent}
                 onChange={(e) => {
                   handleContentChange(e.target.value);
-                  // Auto-resize textarea to fit content while preserving scroll position
-                  const scrollTop = e.target.scrollTop;
+                  // Auto-resize textarea to fit content
                   e.target.style.height = 'auto';
                   e.target.style.height = e.target.scrollHeight + 'px';
-                  e.target.scrollTop = scrollTop;
                 }}
                 className="w-full resize-none border-none outline-none focus:ring-0 bg-transparent text-gray-900 dark:text-gray-100 overflow-hidden"
                 style={{ fontSize: `${editorFontSize}px`, lineHeight: '1.6', minHeight: '100%', fontFamily: editorFont }}
