@@ -8,12 +8,13 @@ import { Note } from './types';
 import { syncManager, SyncStatus } from './services/syncManager';
 import { localDB } from './db/localDB';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
+import { categoryColorsSync } from './services/categoryColorsSync';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [api, setApi] = useState<NextcloudAPI | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
-  const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
+  const [selectedNoteId, setSelectedNoteId] = useState<number | string | null>(null);
   const [searchText, setSearchText] = useState('');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -69,6 +70,7 @@ function App() {
         });
         setApi(apiInstance);
         syncManager.setAPI(apiInstance);
+        categoryColorsSync.setAPI(apiInstance);
         setUsername(savedUsername);
         setIsLoggedIn(true);
         
@@ -152,6 +154,7 @@ function App() {
     const apiInstance = new NextcloudAPI({ serverURL, username, password });
     setApi(apiInstance);
     syncManager.setAPI(apiInstance);
+    categoryColorsSync.setAPI(apiInstance);
     setUsername(username);
     setIsLoggedIn(true);
   };
@@ -164,6 +167,7 @@ function App() {
     await localDB.clearSyncQueue();
     setApi(null);
     syncManager.setAPI(null);
+    categoryColorsSync.setAPI(null);
     setUsername('');
     setNotes([]);
     setSelectedNoteId(null);

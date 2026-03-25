@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { categoryColorsSync } from '../services/categoryColorsSync';
 
 const EDITOR_FONTS = [
   { name: 'Source Code Pro', value: 'Source Code Pro' },
@@ -75,32 +76,28 @@ export function CategoriesSidebar({
   const [newCategoryName, setNewCategoryName] = useState('');
   const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
   const [renameCategoryValue, setRenameCategoryValue] = useState('');
-  const [categoryColors, setCategoryColors] = useState<Record<string, number>>({});
+  const [categoryColors, setCategoryColors] = useState<Record<string, number>>(() => categoryColorsSync.getAllColors());
   const [colorPickerCategory, setColorPickerCategory] = useState<string | null>(null);
   const [isSettingsCollapsed, setIsSettingsCollapsed] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
-  // Load category colors from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('categoryColors');
-    if (saved) {
-      setCategoryColors(JSON.parse(saved));
-    }
+    const handleColorChange = () => {
+      setCategoryColors(categoryColorsSync.getAllColors());
+    };
+    
+    categoryColorsSync.setChangeCallback(handleColorChange);
+    window.addEventListener('categoryColorChanged', handleColorChange);
+    
+    return () => {
+      window.removeEventListener('categoryColorChanged', handleColorChange);
+    };
   }, []);
 
-  const setCategoryColor = (category: string, colorIndex: number | null) => {
-    const updated = { ...categoryColors };
-    if (colorIndex === null) {
-      delete updated[category];
-    } else {
-      updated[category] = colorIndex;
-    }
-    setCategoryColors(updated);
-    localStorage.setItem('categoryColors', JSON.stringify(updated));
+  const setCategoryColor = async (category: string, colorIndex: number | null) => {
+    await categoryColorsSync.setColor(category, colorIndex);
     setColorPickerCategory(null);
-    // Dispatch event to notify other components
-    window.dispatchEvent(new Event('categoryColorChanged'));
   };
 
   useEffect(() => {
