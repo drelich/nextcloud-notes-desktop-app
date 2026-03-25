@@ -1,6 +1,5 @@
 import React from 'react';
 import { Note } from '../types';
-import { categoryColorsSync } from '../services/categoryColorsSync';
 import { SyncStatus } from '../services/syncManager';
 import { categoryColorsSync } from '../services/categoryColorsSync';
 
