@@ -112,7 +112,14 @@ export class NextcloudAPI {
       webdavPath += `/${noteCategory}`;
     }
     
-    const attachmentDir = `.attachments.${noteId}`;
+    // Sanitize note ID: extract just the filename without extension and remove invalid chars
+    // noteId might be "category/filename.md" or just "filename.md"
+    const noteIdStr = String(noteId);
+    const justFilename = noteIdStr.split('/').pop() || noteIdStr;
+    const filenameWithoutExt = justFilename.replace(/\.(md|txt)$/, '');
+    const sanitizedNoteId = filenameWithoutExt.replace(/[^a-zA-Z0-9_-]/g, '_');
+    
+    const attachmentDir = `.attachments.${sanitizedNoteId}`;
     const fileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_'); // Sanitize filename
     const fullPath = `${webdavPath}/${attachmentDir}/${fileName}`;
     
@@ -202,9 +209,9 @@ export class NextcloudAPI {
 
   // WebDAV-based note operations
   private parseNoteFromContent(content: string, filename: string, category: string, etag: string, modified: number): Note {
-    const lines = content.split('\n');
-    const title = lines[0] || filename.replace('.txt', '');
-    const noteContent = lines.slice(1).join('\n').trim();
+    // Extract title from first line
+    const firstLine = content.split('\n')[0].replace(/^#+\s*/, '').trim();
+    const title = firstLine || filename.replace(/\.(md|txt)$/, '');
     
     return {
       id: `${category}/${filename}`,
@@ -212,7 +219,7 @@ export class NextcloudAPI {
       path: category ? `${category}/${filename}` : filename,
       etag,
       readonly: false,
-      content: noteContent,
+      content, // Store full content including first line
       title,
       category,
       favorite: false,
@@ -221,7 +228,8 @@ export class NextcloudAPI {
   }
 
   private formatNoteContent(note: Note): string {
-    return `${note.title}\n${note.content}`;
+    // Content already includes the title as first line
+    return note.content;
   }
 
   async fetchNotesWebDAV(): Promise<Note[]> {
@@ -262,11 +270,11 @@ export class NextcloudAPI {
       const responseNode = responses[i];
       const href = responseNode.getElementsByTagNameNS('DAV:', 'href')[0]?.textContent || '';
       
-      // Skip if not a .txt file
-      if (!href.endsWith('.txt')) continue;
+      // Skip if not a .md or .txt file
+      if (!href.endsWith('.md') && !href.endsWith('.txt')) continue;
       
       // Skip hidden files
-      const filename = href.split('/').pop() || '';
+      const filename = decodeURIComponent(href.split('/').pop() || '');
       if (filename.startsWith('.')) continue;
       
       const propstat = responseNode.getElementsByTagNameNS('DAV:', 'propstat')[0];
@@ -276,32 +284,52 @@ export class NextcloudAPI {
       const lastModified = prop?.getElementsByTagNameNS('DAV:', 'getlastmodified')[0]?.textContent || '';
       const modified = lastModified ? Math.floor(new Date(lastModified).getTime() / 1000) : 0;
       
-      // Extract category from path
+      // Extract category from path and decode URL encoding
       const pathParts = href.split('/Notes/')[1]?.split('/');
-      const category = pathParts && pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : '';
+      const category = pathParts && pathParts.length > 1 
+        ? pathParts.slice(0, -1).map(part => decodeURIComponent(part)).join('/') 
+        : '';
       
-      // Fetch file content
-      try {
-        const fileUrl = `${this.serverURL}${href}`;
-        const fileResponse = await tauriFetch(fileUrl, {
-          headers: { 'Authorization': this.authHeader },
-        });
-        
-        if (fileResponse.ok) {
-          const content = await fileResponse.text();
-          const note = this.parseNoteFromContent(content, filename, category, etag, modified);
-          notes.push(note);
-        }
-      } catch (error) {
-        console.error(`Failed to fetch note ${filename}:`, error);
-      }
+      // Create note with empty content - will be loaded on-demand
+      const title = filename.replace(/\.(md|txt)$/, '');
+      const note: Note = {
+        id: category ? `${category}/${filename}` : filename,
+        filename,
+        path: category ? `${category}/${filename}` : filename,
+        etag,
+        readonly: false,
+        content: '', // Empty - load on demand
+        title,
+        category,
+        favorite: false,
+        modified,
+      };
+      notes.push(note);
     }
     
     return notes;
   }
 
+  async fetchNoteContentWebDAV(note: Note): Promise<Note> {
+    const categoryPath = note.category ? `/${note.category}` : '';
+    const filename = note.filename || String(note.id).split('/').pop() || 'note.md';
+    const webdavPath = `/remote.php/dav/files/${this.username}/Notes${categoryPath}/${filename}`;
+    const url = `${this.serverURL}${webdavPath}`;
+    
+    const response = await tauriFetch(url, {
+      headers: { 'Authorization': this.authHeader },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch note content: ${response.status}`);
+    }
+    
+    const content = await response.text();
+    return this.parseNoteFromContent(content, filename, note.category, note.etag, note.modified);
+  }
+
   async createNoteWebDAV(title: string, content: string, category: string): Promise<Note> {
-    const filename = `${title.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, ' ').trim()}.txt`;
+    const filename = `${title.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, ' ').trim()}.md`;
     const categoryPath = category ? `/${category}` : '';
     const webdavPath = `/remote.php/dav/files/${this.username}/Notes${categoryPath}/${filename}`;
     const url = `${this.serverURL}${webdavPath}`;

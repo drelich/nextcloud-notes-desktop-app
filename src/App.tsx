@@ -73,13 +73,6 @@ function App() {
         categoryColorsSync.setAPI(apiInstance);
         setUsername(savedUsername);
         setIsLoggedIn(true);
-        
-        // Load notes from local DB immediately
-        const localNotes = await localDB.getAllNotes();
-        if (localNotes.length > 0) {
-          setNotes(localNotes.sort((a, b) => b.modified - a.modified));
-          setSelectedNoteId(localNotes[0].id);
-        }
       }
     };
     
@@ -114,6 +107,13 @@ function App() {
     syncManager.setStatusCallback((status, count) => {
       setSyncStatus(status);
       setPendingSyncCount(count);
+    });
+    
+    syncManager.setSyncCompleteCallback(async () => {
+      // Reload notes from cache after background sync completes
+      // Don't call loadNotes() as it triggers another sync - just reload from cache
+      const cachedNotes = await localDB.getAllNotes();
+      setNotes(cachedNotes.sort((a, b) => b.modified - a.modified));
     });
   }, []);
 
@@ -164,7 +164,6 @@ function App() {
     localStorage.removeItem('username');
     localStorage.removeItem('password');
     await localDB.clearNotes();
-    await localDB.clearSyncQueue();
     setApi(null);
     syncManager.setAPI(null);
     categoryColorsSync.setAPI(null);
@@ -251,8 +250,27 @@ function App() {
 
   const handleUpdateNote = async (updatedNote: Note) => {
     try {
-      await syncManager.updateNote(updatedNote);
-      setNotes(notes.map(n => n.id === updatedNote.id ? updatedNote : n));
+      const originalNote = notes.find(n => n.id === updatedNote.id);
+      
+      // If category changed, use moveNote instead of updateNote
+      if (originalNote && originalNote.category !== updatedNote.category) {
+        const movedNote = await syncManager.moveNote(originalNote, updatedNote.category);
+        // If content/title also changed, update the moved note
+        if (originalNote.content !== updatedNote.content || originalNote.title !== updatedNote.title || originalNote.favorite !== updatedNote.favorite) {
+          const finalNote = await syncManager.updateNote({
+            ...movedNote,
+            title: updatedNote.title,
+            content: updatedNote.content,
+            favorite: updatedNote.favorite,
+          });
+          setNotes(notes.map(n => n.id === originalNote.id ? finalNote : n.id === movedNote.id ? finalNote : n));
+        } else {
+          setNotes(notes.map(n => n.id === originalNote.id ? movedNote : n));
+        }
+      } else {
+        const updated = await syncManager.updateNote(updatedNote);
+        setNotes(notes.map(n => n.id === updatedNote.id ? updated : n));
+      }
     } catch (error) {
       console.error('Update note failed:', error);
     }
@@ -260,7 +278,7 @@ function App() {
 
   const handleDeleteNote = async (note: Note) => {
     try {
-      await syncManager.deleteNote(note.id);
+      await syncManager.deleteNote(note);
       const remainingNotes = notes.filter(n => n.id !== note.id);
       setNotes(remainingNotes);
       if (selectedNoteId === note.id) {
