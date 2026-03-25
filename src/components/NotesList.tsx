@@ -32,19 +32,24 @@ export function NotesList({
   showFavoritesOnly,
   onToggleFavorites,
   hasUnsavedChanges,
-  syncStatus: _syncStatus,
+  syncStatus,
   pendingSyncCount,
   isOnline,
 }: NotesListProps) {
-  const [isSyncing, setIsSyncing] = React.useState(false);
   const [deleteClickedId, setDeleteClickedId] = React.useState<number | string | null>(null);
   const [width, setWidth] = React.useState(() => {
     const saved = localStorage.getItem('notesListWidth');
-    return saved ? parseInt(saved, 10) : 320;
+    return saved ? parseInt(saved) : 300;
   });
   const [isResizing, setIsResizing] = React.useState(false);
-  const [, forceUpdate] = React.useReducer(x => x + 1, 0);
   const containerRef = React.useRef<HTMLDivElement>(null);
+
+  const isSyncing = syncStatus === 'syncing';
+  const [, forceUpdate] = React.useReducer(x => x + 1, 0);
+
+  const handleSync = async () => {
+    await onSync();
+  };
 
   // Listen for category color changes
   React.useEffect(() => {
@@ -55,12 +60,6 @@ export function NotesList({
       window.removeEventListener('categoryColorChanged', handleCustomEvent);
     };
   }, []);
-
-  const handleSync = async () => {
-    setIsSyncing(true);
-    await onSync();
-    setTimeout(() => setIsSyncing(false), 500);
-  };
 
   React.useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {

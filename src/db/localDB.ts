@@ -1,7 +1,7 @@
 import { Note } from '../types';
 
 const DB_NAME = 'nextcloud-notes-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Bumped to clear old cache with URL-encoded categories
 const NOTES_STORE = 'notes';
 const SYNC_QUEUE_STORE = 'syncQueue';
 
@@ -29,11 +29,18 @@ class LocalDB {
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
+        const oldVersion = event.oldVersion;
 
         if (!db.objectStoreNames.contains(NOTES_STORE)) {
           const notesStore = db.createObjectStore(NOTES_STORE, { keyPath: 'id' });
           notesStore.createIndex('modified', 'modified', { unique: false });
           notesStore.createIndex('category', 'category', { unique: false });
+        } else if (oldVersion < 2) {
+          // Clear notes store when upgrading to v2 to remove old cached notes
+          // with stripped first lines
+          const transaction = (event.target as IDBOpenDBRequest).transaction!;
+          const notesStore = transaction.objectStore(NOTES_STORE);
+          notesStore.clear();
         }
 
         if (!db.objectStoreNames.contains(SYNC_QUEUE_STORE)) {
