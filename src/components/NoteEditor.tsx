@@ -861,9 +861,11 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
                 value={localContent}
                 onChange={(e) => {
                   handleContentChange(e.target.value);
-                  // Auto-resize textarea to fit content
+                  // Auto-resize textarea to fit content while preserving scroll position
+                  const scrollTop = e.target.scrollTop;
                   e.target.style.height = 'auto';
                   e.target.style.height = e.target.scrollHeight + 'px';
+                  e.target.scrollTop = scrollTop;
                 }}
                 className="w-full resize-none border-none outline-none focus:ring-0 bg-transparent text-gray-900 dark:text-gray-100 overflow-hidden"
                 style={{ fontSize: `${editorFontSize}px`, lineHeight: '1.6', minHeight: '100%', fontFamily: editorFont }}
