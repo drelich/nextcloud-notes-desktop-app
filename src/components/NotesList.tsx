@@ -2,11 +2,12 @@ import React from 'react';
 import { Note } from '../types';
 import { categoryColorsSync } from '../services/categoryColorsSync';
 import { SyncStatus } from '../services/syncManager';
+import { categoryColorsSync } from '../services/categoryColorsSync';
 
 interface NotesListProps {
   notes: Note[];
-  selectedNoteId: number | null;
-  onSelectNote: (id: number) => void;
+  selectedNoteId: number | string | null;
+  onSelectNote: (id: number | string) => void;
   onCreateNote: () => void;
   onDeleteNote: (note: Note) => void;
   onSync: () => void;
@@ -37,7 +38,7 @@ export function NotesList({
   isOnline,
 }: NotesListProps) {
   const [isSyncing, setIsSyncing] = React.useState(false);
-  const [deleteClickedId, setDeleteClickedId] = React.useState<number | null>(null);
+  const [deleteClickedId, setDeleteClickedId] = React.useState<number | string | null>(null);
   const [width, setWidth] = React.useState(() => {
     const saved = localStorage.getItem('notesListWidth');
     return saved ? parseInt(saved, 10) : 320;
@@ -296,9 +297,16 @@ export function NotesList({
                 <span>{formatDate(note.modified)}</span>
                 {note.category && (() => {
                   const colors = getCategoryColor(note.category);
-                  if (!colors) return null;
+                  if (colors) {
+                    return (
+                      <span className={`px-2 py-0.5 ${colors.bg} ${colors.text} rounded-full text-xs font-medium`}>
+                        {note.category}
+                      </span>
+                    );
+                  }
+                  // Show neutral badge when no color is set
                   return (
-                    <span className={`px-2 py-0.5 ${colors.bg} ${colors.text} rounded-full text-xs font-medium`}>
+                    <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full text-xs font-medium">
                       {note.category}
                     </span>
                   );

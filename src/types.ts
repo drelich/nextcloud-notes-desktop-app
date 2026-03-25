@@ -1,5 +1,5 @@
 export interface Note {
-  id: number;
+  id: number | string; // number for API, string (filename) for WebDAV
   etag: string;
   readonly: boolean;
   content: string;
@@ -7,6 +7,8 @@ export interface Note {
   category: string;
   favorite: boolean;
   modified: number;
+  filename?: string; // WebDAV: actual filename on server
+  path?: string; // WebDAV: full path including category
 }
 
 export interface APIConfig {
