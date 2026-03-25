@@ -37,7 +37,7 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
   const [processedContent, setProcessedContent] = useState('');
   const [isLoadingImages, setIsLoadingImages] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const previousNoteIdRef = useRef<number | null>(null);
+  const previousNoteIdRef = useRef<number | string | null>(null);
   const previousNoteContentRef = useRef<string>('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);

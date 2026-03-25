@@ -61,7 +61,7 @@ export class NextcloudAPI {
     await this.request<void>(`/notes/${id}`, { method: 'DELETE' });
   }
 
-  async fetchAttachment(_noteId: number, path: string, noteCategory?: string): Promise<string> {
+  async fetchAttachment(_noteId: number | string, path: string, noteCategory?: string): Promise<string> {
     // Build WebDAV path: /remote.php/dav/files/{username}/Notes/{category}/.attachments.{noteId}/{filename}
     // The path from markdown is like: .attachments.38479/Screenshot.png
     // We need to construct the full WebDAV URL
@@ -102,7 +102,7 @@ export class NextcloudAPI {
     return this.serverURL;
   }
 
-  async uploadAttachment(noteId: number, file: File, noteCategory?: string): Promise<string> {
+  async uploadAttachment(noteId: number | string, file: File, noteCategory?: string): Promise<string> {
     // Create .attachments.{noteId} directory path and upload file via WebDAV PUT
     // Returns the relative path to insert into markdown
     
@@ -151,5 +151,263 @@ export class NextcloudAPI {
 
     // Return the relative path for markdown
     return `${attachmentDir}/${fileName}`;
+  }
+
+  async saveCategoryColors(colors: Record<string, number>): Promise<void> {
+    const webdavPath = `/remote.php/dav/files/${this.username}/Notes/.category-colors.json`;
+    const url = `${this.serverURL}${webdavPath}`;
+    
+    const content = JSON.stringify(colors, null, 2);
+    
+    const response = await tauriFetch(url, {
+      method: 'PUT',
+      headers: {
+        'Authorization': this.authHeader,
+        'Content-Type': 'application/json',
+      },
+      body: content,
+    });
+
+    if (!response.ok && response.status !== 201 && response.status !== 204) {
+      throw new Error(`Failed to save category colors: ${response.status}`);
+    }
+  }
+
+  // WebDAV-based note operations
+  private parseNoteFromContent(content: string, filename: string, category: string, etag: string, modified: number): Note {
+    const lines = content.split('\n');
+    const title = lines[0] || filename.replace('.txt', '');
+    const noteContent = lines.slice(1).join('\n').trim();
+    
+    return {
+      id: `${category}/${filename}`,
+      filename,
+      path: category ? `${category}/${filename}` : filename,
+      etag,
+      readonly: false,
+      content: noteContent,
+      title,
+      category,
+      favorite: false,
+      modified,
+    };
+  }
+
+  private formatNoteContent(note: Note): string {
+    return `${note.title}\n${note.content}`;
+  }
+
+  async fetchNotesWebDAV(): Promise<Note[]> {
+    const webdavPath = `/remote.php/dav/files/${this.username}/Notes`;
+    const url = `${this.serverURL}${webdavPath}`;
+    
+    const response = await tauriFetch(url, {
+      method: 'PROPFIND',
+      headers: {
+        'Authorization': this.authHeader,
+        'Depth': 'infinity',
+        'Content-Type': 'application/xml',
+      },
+      body: `<?xml version="1.0"?>
+        <d:propfind xmlns:d="DAV:">
+          <d:prop>
+            <d:getlastmodified/>
+            <d:getetag/>
+            <d:getcontenttype/>
+            <d:resourcetype/>
+          </d:prop>
+        </d:propfind>`,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to list notes: ${response.status}`);
+    }
+
+    const xmlText = await response.text();
+    const notes: Note[] = [];
+    
+    // Parse XML response
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+    const responses = xmlDoc.getElementsByTagNameNS('DAV:', 'response');
+    
+    for (let i = 0; i < responses.length; i++) {
+      const responseNode = responses[i];
+      const href = responseNode.getElementsByTagNameNS('DAV:', 'href')[0]?.textContent || '';
+      
+      // Skip if not a .txt file
+      if (!href.endsWith('.txt')) continue;
+      
+      // Skip hidden files
+      const filename = href.split('/').pop() || '';
+      if (filename.startsWith('.')) continue;
+      
+      const propstat = responseNode.getElementsByTagNameNS('DAV:', 'propstat')[0];
+      const prop = propstat?.getElementsByTagNameNS('DAV:', 'prop')[0];
+      
+      const etag = prop?.getElementsByTagNameNS('DAV:', 'getetag')[0]?.textContent || '';
+      const lastModified = prop?.getElementsByTagNameNS('DAV:', 'getlastmodified')[0]?.textContent || '';
+      const modified = lastModified ? Math.floor(new Date(lastModified).getTime() / 1000) : 0;
+      
+      // Extract category from path
+      const pathParts = href.split('/Notes/')[1]?.split('/');
+      const category = pathParts && pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : '';
+      
+      // Fetch file content
+      try {
+        const fileUrl = `${this.serverURL}${href}`;
+        const fileResponse = await tauriFetch(fileUrl, {
+          headers: { 'Authorization': this.authHeader },
+        });
+        
+        if (fileResponse.ok) {
+          const content = await fileResponse.text();
+          const note = this.parseNoteFromContent(content, filename, category, etag, modified);
+          notes.push(note);
+        }
+      } catch (error) {
+        console.error(`Failed to fetch note ${filename}:`, error);
+      }
+    }
+    
+    return notes;
+  }
+
+  async createNoteWebDAV(title: string, content: string, category: string): Promise<Note> {
+    const filename = `${title.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, ' ').trim()}.txt`;
+    const categoryPath = category ? `/${category}` : '';
+    const webdavPath = `/remote.php/dav/files/${this.username}/Notes${categoryPath}/${filename}`;
+    const url = `${this.serverURL}${webdavPath}`;
+    
+    // Ensure category directory exists
+    if (category) {
+      try {
+        const categoryUrl = `${this.serverURL}/remote.php/dav/files/${this.username}/Notes/${category}`;
+        await tauriFetch(categoryUrl, {
+          method: 'MKCOL',
+          headers: { 'Authorization': this.authHeader },
+        });
+      } catch (e) {
+        // Directory might already exist
+      }
+    }
+    
+    const noteContent = `${title}\n${content}`;
+    
+    const response = await tauriFetch(url, {
+      method: 'PUT',
+      headers: {
+        'Authorization': this.authHeader,
+        'Content-Type': 'text/plain',
+      },
+      body: noteContent,
+    });
+
+    if (!response.ok && response.status !== 201 && response.status !== 204) {
+      throw new Error(`Failed to create note: ${response.status}`);
+    }
+
+    const etag = response.headers.get('etag') || '';
+    const modified = Math.floor(Date.now() / 1000);
+    
+    return {
+      id: `${category}/${filename}`,
+      filename,
+      path: category ? `${category}/${filename}` : filename,
+      etag,
+      readonly: false,
+      content,
+      title,
+      category,
+      favorite: false,
+      modified,
+    };
+  }
+
+  async updateNoteWebDAV(note: Note): Promise<Note> {
+    const categoryPath = note.category ? `/${note.category}` : '';
+    const webdavPath = `/remote.php/dav/files/${this.username}/Notes${categoryPath}/${note.filename}`;
+    const url = `${this.serverURL}${webdavPath}`;
+    
+    const noteContent = this.formatNoteContent(note);
+    
+    const response = await tauriFetch(url, {
+      method: 'PUT',
+      headers: {
+        'Authorization': this.authHeader,
+        'Content-Type': 'text/plain',
+        'If-Match': note.etag, // Prevent overwriting if file changed
+      },
+      body: noteContent,
+    });
+
+    if (!response.ok && response.status !== 204) {
+      if (response.status === 412) {
+        throw new Error('Note was modified by another client. Please refresh.');
+      }
+      throw new Error(`Failed to update note: ${response.status}`);
+    }
+
+    const etag = response.headers.get('etag') || note.etag;
+    
+    return {
+      ...note,
+      etag,
+      modified: Math.floor(Date.now() / 1000),
+    };
+  }
+
+  async deleteNoteWebDAV(note: Note): Promise<void> {
+    const categoryPath = note.category ? `/${note.category}` : '';
+    const webdavPath = `/remote.php/dav/files/${this.username}/Notes${categoryPath}/${note.filename}`;
+    const url = `${this.serverURL}${webdavPath}`;
+    
+    const response = await tauriFetch(url, {
+      method: 'DELETE',
+      headers: { 'Authorization': this.authHeader },
+    });
+
+    if (!response.ok && response.status !== 204) {
+      throw new Error(`Failed to delete note: ${response.status}`);
+    }
+  }
+
+  async moveNoteWebDAV(note: Note, newCategory: string): Promise<Note> {
+    const oldCategoryPath = note.category ? `/${note.category}` : '';
+    const newCategoryPath = newCategory ? `/${newCategory}` : '';
+    const oldPath = `/remote.php/dav/files/${this.username}/Notes${oldCategoryPath}/${note.filename}`;
+    const newPath = `/remote.php/dav/files/${this.username}/Notes${newCategoryPath}/${note.filename}`;
+    
+    // Ensure new category directory exists
+    if (newCategory) {
+      try {
+        const categoryUrl = `${this.serverURL}/remote.php/dav/files/${this.username}/Notes/${newCategory}`;
+        await tauriFetch(categoryUrl, {
+          method: 'MKCOL',
+          headers: { 'Authorization': this.authHeader },
+        });
+      } catch (e) {
+        // Directory might already exist
+      }
+    }
+    
+    const response = await tauriFetch(`${this.serverURL}${oldPath}`, {
+      method: 'MOVE',
+      headers: {
+        'Authorization': this.authHeader,
+        'Destination': `${this.serverURL}${newPath}`,
+      },
+    });
+
+    if (!response.ok && response.status !== 201 && response.status !== 204) {
+      throw new Error(`Failed to move note: ${response.status}`);
+    }
+
+    return {
+      ...note,
+      category: newCategory,
+      path: newCategory ? `${newCategory}/${note.filename}` : note.filename || '',
+      id: `${newCategory}/${note.filename}`,
+    };
   }
 }

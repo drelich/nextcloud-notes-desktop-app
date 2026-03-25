@@ -59,7 +59,7 @@ class LocalDB {
     });
   }
 
-  async getNote(id: number): Promise<Note | undefined> {
+  async getNote(id: number | string): Promise<Note | undefined> {
     return new Promise((resolve, reject) => {
       const store = this.getStore(NOTES_STORE);
       const request = store.get(id);
@@ -89,7 +89,7 @@ class LocalDB {
     });
   }
 
-  async deleteNote(id: number): Promise<void> {
+  async deleteNote(id: number | string): Promise<void> {
     return new Promise((resolve, reject) => {
       const store = this.getStore(NOTES_STORE, 'readwrite');
       const request = store.delete(id);

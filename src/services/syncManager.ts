@@ -70,16 +70,25 @@ export class SyncManager {
       // First, process any pending operations
       await this.processSyncQueue();
 
-      // Then fetch latest from server
-      const serverNotes = await this.api.fetchNotes();
+      // Fetch notes directly from WebDAV (file system)
+      const serverNotes = await this.api.fetchNotesWebDAV();
       const localNotes = await localDB.getAllNotes();
 
-      // Merge strategy: server wins for conflicts (last-write-wins based on modified timestamp)
-      const mergedNotes = this.mergeNotes(localNotes, serverNotes);
+      // Merge strategy: use file path as unique identifier
+      const mergedNotes = this.mergeNotesWebDAV(localNotes, serverNotes);
       
-      // Save merged notes to local DB
-      await localDB.clearNotes();
-      await localDB.saveNotes(mergedNotes);
+      // Update local DB with merged notes (no clearNotes - safer!)
+      for (const note of mergedNotes) {
+        await localDB.saveNote(note);
+      }
+
+      // Remove notes that no longer exist on server
+      const serverIds = new Set(serverNotes.map(n => n.id));
+      for (const localNote of localNotes) {
+        if (!serverIds.has(localNote.id) && typeof localNote.id === 'string') {
+          await localDB.deleteNote(localNote.id);
+        }
+      }
 
       this.notifyStatus('idle', 0);
     } catch (error) {
@@ -91,16 +100,24 @@ export class SyncManager {
     }
   }
 
-  private mergeNotes(localNotes: Note[], serverNotes: Note[]): Note[] {
+  private mergeNotesWebDAV(localNotes: Note[], serverNotes: Note[]): Note[] {
     const serverMap = new Map(serverNotes.map(n => [n.id, n]));
+    const localMap = new Map(localNotes.map(n => [n.id, n]));
     const merged: Note[] = [];
 
-    // Add all server notes (they are the source of truth)
+    // Add all server notes (they are the source of truth for existing files)
     serverNotes.forEach(serverNote => {
-      merged.push(serverNote);
+      const localNote = localMap.get(serverNote.id);
+      
+      // If local version is newer, keep it (will be synced later)
+      if (localNote && localNote.modified > serverNote.modified) {
+        merged.push(localNote);
+      } else {
+        merged.push(serverNote);
+      }
     });
 
-    // Add local-only notes (not yet synced, likely have temporary IDs)
+    // Add local-only notes (not yet synced to server)
     localNotes.forEach(localNote => {
       if (!serverMap.has(localNote.id)) {
         merged.push(localNote);
@@ -112,9 +129,12 @@ export class SyncManager {
 
   // Create note (offline-first)
   async createNote(title: string, content: string, category: string): Promise<Note> {
-    // Create temporary note with negative ID for offline mode
+    // Generate filename-based ID
+    const filename = `${title.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, ' ').trim()}.txt`;
     const tempNote: Note = {
-      id: -Date.now(), // Temporary negative ID
+      id: `${category}/${filename}`,
+      filename,
+      path: category ? `${category}/${filename}` : filename,
       etag: '',
       readonly: false,
       content,
@@ -175,27 +195,25 @@ export class SyncManager {
   }
 
   // Delete note (offline-first)
-  async deleteNote(id: number): Promise<void> {
+  async deleteNote(id: number | string): Promise<void> {
     // Delete from local DB immediately
     await localDB.deleteNote(id);
 
-    // Queue for sync (only if it's a real server ID, not temporary)
-    if (id > 0) {
-      const operation: SyncOperation = {
-        id: `delete-${id}-${Date.now()}`,
-        type: 'delete',
-        noteId: id,
-        timestamp: Date.now(),
-        retryCount: 0,
-      };
-      await localDB.addToSyncQueue(operation);
+    // Queue for sync
+    const operation: SyncOperation = {
+      id: `delete-${id}-${Date.now()}`,
+      type: 'delete',
+      noteId: id,
+      timestamp: Date.now(),
+      retryCount: 0,
+    };
+    await localDB.addToSyncQueue(operation);
 
-      // Try to sync immediately if online
-      if (this.isOnline && this.api) {
-        this.processSyncQueue().catch(console.error);
-      } else {
-        this.notifyStatus('offline', await this.getPendingCount());
-      }
+    // Try to sync immediately if online
+    if (this.isOnline && this.api) {
+      this.processSyncQueue().catch(console.error);
+    } else {
+      this.notifyStatus('offline', await this.getPendingCount());
     }
   }
 
@@ -238,28 +256,31 @@ export class SyncManager {
     switch (operation.type) {
       case 'create':
         if (operation.note) {
-          const serverNote = await this.api.createNote(
+          const serverNote = await this.api.createNoteWebDAV(
             operation.note.title,
             operation.note.content,
             operation.note.category
           );
           
-          // Replace temporary note with server note
-          await localDB.deleteNote(operation.note.id);
+          // Update local note with server response (etag, etc.)
           await localDB.saveNote(serverNote);
         }
         break;
 
       case 'update':
-        if (operation.note && operation.note.id > 0) {
-          const serverNote = await this.api.updateNote(operation.note);
+        if (operation.note) {
+          const serverNote = await this.api.updateNoteWebDAV(operation.note);
           await localDB.saveNote(serverNote);
         }
         break;
 
       case 'delete':
-        if (typeof operation.noteId === 'number' && operation.noteId > 0) {
-          await this.api.deleteNote(operation.noteId);
+        if (operation.noteId) {
+          // For delete, we need the note object to know the filename
+          const note = await localDB.getNote(operation.noteId);
+          if (note) {
+            await this.api.deleteNoteWebDAV(note);
+          }
         }
         break;
     }
