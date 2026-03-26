@@ -61,6 +61,51 @@ export class NextcloudAPI {
     await this.request<void>(`/notes/${id}`, { method: 'DELETE' });
   }
 
+  // Fetch lightweight note list with IDs and favorites for hybrid sync
+  async fetchNotesMetadata(): Promise<Array<{id: number, title: string, category: string, favorite: boolean, modified: number}>> {
+    const notes = await this.request<Note[]>('/notes');
+    return notes.map(note => ({
+      id: note.id as number,
+      title: note.title,
+      category: note.category,
+      favorite: note.favorite,
+      modified: note.modified,
+    }));
+  }
+
+  // Update only favorite status via API
+  async updateFavoriteStatus(noteId: number, favorite: boolean): Promise<void> {
+    await this.request<Note>(`/notes/${noteId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ favorite }),
+    });
+  }
+
+  // Map WebDAV note to API ID by matching modified timestamp and category
+  // We can't use title because API title and WebDAV first-line title can differ
+  async findApiIdForNote(title: string, category: string, modified: number): Promise<number | null> {
+    try {
+      const metadata = await this.fetchNotesMetadata();
+      
+      // First try exact title + category match
+      let match = metadata.find(note => 
+        note.title === title && note.category === category
+      );
+      
+      // If no title match, try modified timestamp + category (more reliable)
+      if (!match) {
+        match = metadata.find(note => 
+          note.modified === modified && note.category === category
+        );
+      }
+      
+      return match ? match.id : null;
+    } catch (error) {
+      console.error('Failed to find API ID for note:', error);
+      return null;
+    }
+  }
+
   async fetchAttachment(_noteId: number | string, path: string, noteCategory?: string): Promise<string> {
     // Build WebDAV path: /remote.php/dav/files/{username}/Notes/{category}/.attachments.{noteId}/{filename}
     // The path from markdown is like: .attachments.38479/Screenshot.png

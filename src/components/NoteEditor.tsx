@@ -10,6 +10,7 @@ import { InsertToolbar } from './InsertToolbar';
 interface NoteEditorProps {
   note: Note | null;
   onUpdateNote: (note: Note) => void;
+  onToggleFavorite?: (note: Note, favorite: boolean) => void;
   onUnsavedChanges?: (hasChanges: boolean) => void;
   categories: string[];
   isFocusMode?: boolean;
@@ -24,7 +25,7 @@ interface NoteEditorProps {
 const imageCache = new Map<string, string>();
 
 
-export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, isFocusMode, onToggleFocusMode, editorFont = 'Source Code Pro', editorFontSize = 14, previewFont = 'Merriweather', previewFontSize = 16, api }: NoteEditorProps) {
+export function NoteEditor({ note, onUpdateNote, onToggleFavorite, onUnsavedChanges, categories, isFocusMode, onToggleFocusMode, editorFont = 'Source Code Pro', editorFontSize = 14, previewFont = 'Merriweather', previewFontSize = 16, api }: NoteEditorProps) {
   const [localContent, setLocalContent] = useState('');
   const [localCategory, setLocalCategory] = useState('');
   const [localFavorite, setLocalFavorite] = useState(false);
@@ -399,8 +400,14 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
   };
 
   const handleFavoriteToggle = () => {
-    setLocalFavorite(!localFavorite);
-    if (note) {
+    const newFavorite = !localFavorite;
+    setLocalFavorite(newFavorite);
+    
+    if (note && onToggleFavorite) {
+      // Use dedicated favorite toggle callback if provided
+      onToggleFavorite(note, newFavorite);
+    } else if (note) {
+      // Fallback to full update if no callback provided
       const firstLine = localContent.split('\n')[0].replace(/^#+\s*/, '').trim();
       const title = firstLine || 'Untitled';
       
@@ -409,7 +416,7 @@ export function NoteEditor({ note, onUpdateNote, onUnsavedChanges, categories, i
         title,
         content: localContent,
         category: localCategory,
-        favorite: !localFavorite,
+        favorite: newFavorite,
       });
     }
   };

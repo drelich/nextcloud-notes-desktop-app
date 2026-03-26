@@ -198,6 +198,18 @@ function App() {
     localStorage.setItem('previewFontSize', size.toString());
   };
 
+  const handleToggleFavorite = async (note: Note, favorite: boolean) => {
+    try {
+      await syncManager.updateFavoriteStatus(note, favorite);
+      // Update local state
+      setNotes(prevNotes => 
+        prevNotes.map(n => n.id === note.id ? { ...n, favorite } : n)
+      );
+    } catch (error) {
+      console.error('Toggle favorite failed:', error);
+    }
+  };
+
   const handleCreateNote = async () => {
     try {
       const timestamp = new Date().toLocaleString('en-US', {
@@ -355,6 +367,7 @@ function App() {
       <NoteEditor
         note={selectedNote}
         onUpdateNote={handleUpdateNote}
+        onToggleFavorite={handleToggleFavorite}
         onUnsavedChanges={setHasUnsavedChanges}
         categories={categories}
         isFocusMode={isFocusMode}

@@ -117,6 +117,9 @@ export class SyncManager {
         }
       }
       
+      // Sync favorite status from API
+      await this.syncFavoriteStatus();
+      
       this.notifyStatus('idle', 0);
       
       // Notify that sync is complete so UI can reload
@@ -128,6 +131,41 @@ export class SyncManager {
       this.notifyStatus('error', 0);
     } finally {
       this.syncInProgress = false;
+    }
+  }
+
+  // Sync favorite status from API to local cache
+  private async syncFavoriteStatus(): Promise<void> {
+    if (!this.api) return;
+    
+    try {
+      console.log('Syncing favorite status from API...');
+      const apiMetadata = await this.api.fetchNotesMetadata();
+      const cachedNotes = await localDB.getAllNotes();
+      
+      // Map API notes by title and category for matching
+      const apiMap = new Map<string, {id: number, favorite: boolean}>();
+      for (const apiNote of apiMetadata) {
+        const key = `${apiNote.category}/${apiNote.title}`;
+        apiMap.set(key, { id: apiNote.id, favorite: apiNote.favorite });
+      }
+      
+      // Update favorite status in cache for matching notes
+      for (const cachedNote of cachedNotes) {
+        const key = `${cachedNote.category}/${cachedNote.title}`;
+        const apiData = apiMap.get(key);
+        
+        if (apiData && cachedNote.favorite !== apiData.favorite) {
+          console.log(`Updating favorite status for "${cachedNote.title}": ${cachedNote.favorite} -> ${apiData.favorite}`);
+          cachedNote.favorite = apiData.favorite;
+          await localDB.saveNote(cachedNote);
+        }
+      }
+      
+      console.log('Favorite status sync complete');
+    } catch (error) {
+      console.error('Failed to sync favorite status:', error);
+      // Don't throw - favorite sync is non-critical
     }
   }
 
@@ -194,6 +232,42 @@ export class SyncManager {
     } catch (error) {
       this.notifyStatus('error', 0);
       throw error;
+    }
+  }
+
+  // Update favorite status via API
+  async updateFavoriteStatus(note: Note, favorite: boolean): Promise<void> {
+    if (!this.api) {
+      throw new Error('API not initialized');
+    }
+
+    if (!this.isOnline) {
+      // Update locally, will sync when back online
+      note.favorite = favorite;
+      await localDB.saveNote(note);
+      return;
+    }
+
+    try {
+      // Find API ID for this note
+      const apiId = await this.api.findApiIdForNote(note.title, note.category, note.modified);
+      
+      if (apiId) {
+        // Update via API
+        await this.api.updateFavoriteStatus(apiId, favorite);
+        console.log(`Updated favorite status for "${note.title}" (API ID: ${apiId})`);
+      } else {
+        console.warn(`Could not find API ID for note: "${note.title}"`);
+      }
+      
+      // Update local cache
+      note.favorite = favorite;
+      await localDB.saveNote(note);
+    } catch (error) {
+      console.error('Failed to update favorite status:', error);
+      // Still update locally
+      note.favorite = favorite;
+      await localDB.saveNote(note);
     }
   }
 
