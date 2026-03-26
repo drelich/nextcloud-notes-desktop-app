@@ -509,6 +509,32 @@ export class NextcloudAPI {
       throw new Error(`Failed to move note: ${response.status}`);
     }
 
+    // Move attachment folder if it exists
+    const noteIdStr = String(note.id);
+    const justFilename = noteIdStr.split('/').pop() || noteIdStr;
+    const sanitizedNoteId = justFilename.replace(/\.(md|txt)$/, '').replace(/[^\w\s-]/g, '_');
+    const attachmentFolder = `.attachments.${sanitizedNoteId}`;
+    
+    const oldAttachmentPath = `/remote.php/dav/files/${this.username}/Notes${oldCategoryPath}/${attachmentFolder}`;
+    const newAttachmentPath = `/remote.php/dav/files/${this.username}/Notes${newCategoryPath}/${attachmentFolder}`;
+    
+    try {
+      const attachmentResponse = await tauriFetch(`${this.serverURL}${oldAttachmentPath}`, {
+        method: 'MOVE',
+        headers: {
+          'Authorization': this.authHeader,
+          'Destination': `${this.serverURL}${newAttachmentPath}`,
+        },
+      });
+      
+      if (attachmentResponse.ok || attachmentResponse.status === 201 || attachmentResponse.status === 204) {
+        console.log(`Moved attachment folder: ${attachmentFolder}`);
+      }
+    } catch (e) {
+      // Attachment folder might not exist, that's okay
+      console.log(`No attachment folder to move for note: ${note.filename}`);
+    }
+
     return {
       ...note,
       category: newCategory,
