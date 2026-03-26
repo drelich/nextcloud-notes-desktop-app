@@ -167,7 +167,11 @@ export function NoteEditor({ note, onUpdateNote, onToggleFavorite, onUnsavedChan
     else if (!note || previousNoteIdRef.current === null) {
       loadNewNote();
     }
-  }, [note?.id, note?.content, note?.modified]);
+    // Favorite status changed (e.g., from sync)
+    else if (note && note.favorite !== localFavorite) {
+      setLocalFavorite(note.favorite);
+    }
+  }, [note?.id, note?.content, note?.modified, note?.favorite]);
 
   const handleSave = () => {
     if (!note || !hasUnsavedChanges) return;
