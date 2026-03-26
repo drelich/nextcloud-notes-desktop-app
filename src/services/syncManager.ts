@@ -143,17 +143,30 @@ export class SyncManager {
       const apiMetadata = await this.api.fetchNotesMetadata();
       const cachedNotes = await localDB.getAllNotes();
       
-      // Map API notes by title and category for matching
-      const apiMap = new Map<string, {id: number, favorite: boolean}>();
+      // Map API notes by modified timestamp + category for reliable matching
+      // (titles can differ between API and WebDAV)
+      const apiByTimestamp = new Map<string, {id: number, title: string, favorite: boolean}>();
+      const apiByTitle = new Map<string, {id: number, title: string, favorite: boolean}>();
+      
       for (const apiNote of apiMetadata) {
-        const key = `${apiNote.category}/${apiNote.title}`;
-        apiMap.set(key, { id: apiNote.id, favorite: apiNote.favorite });
+        const timestampKey = `${apiNote.modified}:${apiNote.category}`;
+        const titleKey = `${apiNote.category}/${apiNote.title}`;
+        const noteData = { id: apiNote.id, title: apiNote.title, favorite: apiNote.favorite };
+        apiByTimestamp.set(timestampKey, noteData);
+        apiByTitle.set(titleKey, noteData);
       }
       
       // Update favorite status in cache for matching notes
       for (const cachedNote of cachedNotes) {
-        const key = `${cachedNote.category}/${cachedNote.title}`;
-        const apiData = apiMap.get(key);
+        // Try timestamp match first (most reliable)
+        const timestampKey = `${cachedNote.modified}:${cachedNote.category}`;
+        let apiData = apiByTimestamp.get(timestampKey);
+        
+        // Fallback to title match if timestamp doesn't work
+        if (!apiData) {
+          const titleKey = `${cachedNote.category}/${cachedNote.title}`;
+          apiData = apiByTitle.get(titleKey);
+        }
         
         if (apiData && cachedNote.favorite !== apiData.favorite) {
           console.log(`Updating favorite status for "${cachedNote.title}": ${cachedNote.favorite} -> ${apiData.favorite}`);
