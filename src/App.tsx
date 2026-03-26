@@ -236,16 +236,15 @@ function App() {
   };
 
   const handleRenameCategory = async (oldName: string, newName: string) => {
-    // Update all notes with the old category to the new category
-    const notesToUpdate = notes.filter(note => note.category === oldName);
+    // Move all notes from old category to new category
+    const notesToMove = notes.filter(note => note.category === oldName);
     
-    for (const note of notesToUpdate) {
+    for (const note of notesToMove) {
       try {
-        const updatedNote = { ...note, category: newName };
-        await syncManager.updateNote(updatedNote);
-        setNotes(prevNotes => prevNotes.map(n => n.id === note.id ? updatedNote : n));
+        const movedNote = await syncManager.moveNote(note, newName);
+        setNotes(prevNotes => prevNotes.map(n => n.id === note.id ? movedNote : n));
       } catch (error) {
-        console.error(`Failed to update note ${note.id}:`, error);
+        console.error(`Failed to move note ${note.id}:`, error);
       }
     }
 

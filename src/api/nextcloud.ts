@@ -478,16 +478,22 @@ export class NextcloudAPI {
     const oldPath = `/remote.php/dav/files/${this.username}/Notes${oldCategoryPath}/${note.filename}`;
     const newPath = `/remote.php/dav/files/${this.username}/Notes${newCategoryPath}/${note.filename}`;
     
-    // Ensure new category directory exists
+    // Ensure new category directory exists (including nested subdirectories)
     if (newCategory) {
-      try {
-        const categoryUrl = `${this.serverURL}/remote.php/dav/files/${this.username}/Notes/${newCategory}`;
-        await tauriFetch(categoryUrl, {
-          method: 'MKCOL',
-          headers: { 'Authorization': this.authHeader },
-        });
-      } catch (e) {
-        // Directory might already exist
+      const parts = newCategory.split('/');
+      let currentPath = '';
+      
+      for (const part of parts) {
+        currentPath += (currentPath ? '/' : '') + part;
+        try {
+          const categoryUrl = `${this.serverURL}/remote.php/dav/files/${this.username}/Notes/${currentPath}`;
+          await tauriFetch(categoryUrl, {
+            method: 'MKCOL',
+            headers: { 'Authorization': this.authHeader },
+          });
+        } catch (e) {
+          // Directory might already exist, continue
+        }
       }
     }
     
